@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Hollow Crown</title>
+  <meta name="description" content="The Hollow Crown. Open the launcher or event signups.">
+  <meta name="google-adsense-account" content="ca-pub-6445372548352978">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6445372548352978"
+     crossorigin="anonymous"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #161513;
+      --raised: #221f1c;
+      --line: #4e4943;
+      --text: #e7e1d8;
+      --muted: #b7aea3;
+      --bronze: #a56b32;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(165, 107, 50, 0.18), transparent 42%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 4.5rem 1.5rem 3rem;
+    }
+
+    .mark {
+      width: 4.5rem;
+      height: 4.5rem;
+      color: var(--bronze);
+    }
+
+    h1 {
+      margin: 1.25rem 0 0.5rem;
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      line-height: 1.1;
+      font-weight: 700;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.125rem;
+    }
+
+    .choices {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+      margin-top: 2rem;
+    }
+
+    @media (min-width: 40rem) {
+      .choices { grid-template-columns: 1fr 1fr; }
+    }
+
+    .choice {
+      display: block;
+      padding: 1.15rem 1.15rem 1rem;
+      background: var(--raised);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--bronze);
+      border-radius: 0.75rem;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .choice strong {
+      display: block;
+      font-size: 1.15rem;
+    }
+
+    .choice span {
+      display: block;
+      margin-top: 0.35rem;
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 2.5rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <svg class="mark" viewBox="0 0 512 512" aria-hidden="true">
+      <path fill="currentColor" d="M80 360h352v48H80zM112 360l40-168 48 96 56-144 56 144 48-96 40 168H112z"/>
+      <circle cx="256" cy="168" r="22" fill="currentColor"/>
+    </svg>
+    <h1>The Hollow Crown</h1>
+    <p class="lead">Open the launcher or event signups.</p>
+    <nav class="choices" aria-label="Sites">
+      <a class="choice" href="https://launcher.thehollowcrownmc.com">
+        <strong>Launcher</strong>
+        <span>Download the official launcher.</span>
+      </a>
+      <a class="choice" href="https://signup.thehollowcrownmc.com">
+        <strong>Signups</strong>
+        <span>Apply for events.</span>
+      </a>
+    </nav>
+    <footer>
+      <p>This is not an official Minecraft product. It is not approved by or associated with Mojang or Microsoft.</p>
+    </footer>
+  </main>
+</body>
+</html>
