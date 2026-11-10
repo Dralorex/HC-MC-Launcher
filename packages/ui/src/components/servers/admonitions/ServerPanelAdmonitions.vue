@@ -1,0 +1,609 @@
+<script setup lang="ts">
+import type { Archon } from '@modrinth/api-client'
+import { computed, reactive, ref, useTemplateRef } from 'vue'
+import { useRoute } from 'vue-router'
+
+import Admonition from '#ui/components/base/Admonition.vue'
+import StackedAdmonitions, {
+	type StackedAdmonitionItem,
+} from '#ui/components/base/StackedAdmonitions.vue'
+import CurseForgeFilesReviewModal from '#ui/components/servers/CurseForgeFilesReviewModal.vue'
+import InstallingBanner from '#ui/components/servers/InstallingBanner.vue'
+import ServerSharePushModal from '#ui/components/servers/sharing/ServerSharePushModal.vue'
+import { defineMessages, useVIntl } from '#ui/composables/i18n'
+import { useServerBackupsQueue } from '#ui/composables/server-backups-queue'
+import { useServerPermissions } from '#ui/composables/server-permissions'
+import { useSharedInstanceInstalledOnce } from '#ui/composables/server-sharing/shared-instance'
+import { useServerShareReview } from '#ui/composables/server-sharing/use-server-share-review'
+import type { FileOperation } from '#ui/layouts/shared/files-tab/types'
+import { injectModrinthClient, injectModrinthServerContext } from '#ui/providers'
+
+import BackupAdmonition, {
+	type AdmonitionDisplayState,
+	type BackupAdmonitionEntry,
+} from './BackupAdmonition.vue'
+import CurseForgeFilesAdmonition from './CurseForgeFilesAdmonition.vue'
+import FileOperationAdmonition from './FileOperationAdmonition.vue'
+import ShareUpdateAdmonition from './ShareUpdateAdmonition.vue'
+import UploadAdmonition from './UploadAdmonition.vue'
+
+defineOptions({ inheritAttrs: false })
+
+const props = withDefaults(
+	defineProps<{
+		curseforgeFileWarningCount?: number
+	}>(),
+	{ curseforgeFileWarningCount: 0 },
+)
+
+const emit = defineEmits<{
+	'installation-retry': []
+}>()
+
+const { formatMessage } = useVIntl()
+const curseforgeReviewModal =
+	useTemplateRef<InstanceType<typeof CurseForgeFilesReviewModal>>('curseforgeReviewModal')
+const client = injectModrinthClient()
+const ctx = injectModrinthServerContext()
+const route = useRoute()
+const { canSetup, canManageBackups, canWriteFiles, permissionDeniedMessage } =
+	useServerPermissions()
+const {
+	diffModal,
+	previewOpen,
+	previewQuery,
+	shareActions,
+	sharePreviews,
+	pending: sharePending,
+	showPreview,
+	prefetchFiles,
+	runAction,
+} = useServerShareReview()
+const world = computed(() =>
+	ctx.serverFull.value?.worlds.find((world) => world.id === ctx.worldId.value),
+)
+const sharedInstanceId = computed(() => world.value?.content?.shared_instance_id ?? null)
+const installedOnce = useSharedInstanceInstalledOnce(sharedInstanceId)
+const needsShareUpdate = computed(() => world.value?.content?.shared_instance_needs_update ?? false)
+const {
+	activeOperations,
+	backups,
+	migrationIds,
+	progressFor,
+	migrationStateFor,
+	forgetMigration,
+	invalidate,
+} = useServerBackupsQueue(
+	computed(() => ctx.serverId),
+	ctx.worldId,
+)
+
+const messages = defineMessages({
+	backgroundTaskRunning: {
+		id: 'servers.admonitions.background-task-running',
+		defaultMessage: 'Background task running',
+	},
+	contentBusyBody: {
+		id: 'content.page-layout.busy-description',
+		defaultMessage: 'Please wait for the operation to complete before editing content.',
+	},
+	filesBusyBody: {
+		id: 'files.layout.busy-warning',
+		defaultMessage: 'File operations are disabled while the operation is in progress.',
+	},
+})
+
+const isOnContentTab = computed(() => route.path.includes('/content'))
+const isOnFilesTab = computed(() => route.path.includes('/files'))
+
+function isBackupReason(id: string) {
+	return (
+		id === 'servers.busy.backup-creating' ||
+		id === 'servers.busy.backup-restoring' ||
+		id === 'servers.busy.migrating'
+	)
+}
+
+function isInstallingReason(id: string) {
+	return id === 'servers.busy.installing'
+}
+
+const filteredBusyReasons = computed(() =>
+	ctx.busyReasons.value.filter((r) => {
+		if (isBackupReason(r.reason.id)) return false
+		if (isInstallingReason(r.reason.id)) return false
+		return true
+	}),
+)
+
+const contentBusyHeader = computed(() =>
+	filteredBusyReasons.value.length > 0 ? formatMessage(filteredBusyReasons.value[0].reason) : null,
+)
+
+const filesBusyHeader = computed(() =>
+	filteredBusyReasons.value.length > 0 ? formatMessage(filteredBusyReasons.value[0].reason) : null,
+)
+
+const dismissedIds = reactive(new Set<string>())
+const curseforgeFilesWarningId = computed(
+	() => `curseforge-files:${ctx.worldId.value}:${props.curseforgeFileWarningCount}`,
+)
+const cancellingIds = reactive(new Set<string>())
+const uploadCancelling = ref(false)
+
+function migrationDisplayState(
+	joint: Archon.Websocket.v0.BackupState | undefined,
+	backup: Archon.BackupsQueue.v1.BackupQueueState | undefined,
+): AdmonitionDisplayState {
+	if (backup === 'failed' || backup === 'timed_out' || backup === 'cancelled') return backup
+	switch (joint) {
+		case 'pending':
+			return 'pending'
+		case 'done':
+			return 'completed'
+		case 'failed':
+		case 'damaged':
+			return 'failed'
+		case 'cancelled':
+			return 'cancelled'
+		default:
+			return 'ongoing'
+	}
+}
+
+const migrationAdmonitionEntries = computed<BackupAdmonitionEntry[]>(() => {
+	const result: BackupAdmonitionEntry[] = []
+	const backupById = new Map(backups.value.map((b) => [b.id, b]))
+
+	for (const backupId of migrationIds.value) {
+		const key = `migration:${backupId}`
+		if (dismissedIds.has(key)) continue
+		const backup = backupById.get(backupId)
+		const create = backup?.history.find((h) => h.operation_type === 'create')
+		const state = migrationDisplayState(migrationStateFor(backupId), create?.state)
+		if (state !== 'pending' && state !== 'ongoing' && create && !create.should_prompt) continue
+		const active = activeOperations.value.find(
+			(op) => op.backup_id === backupId && op.operation_type === 'create',
+		)
+		const progress = progressFor(backupId, 'create') ?? 0
+		result.push({
+			key,
+			backupId,
+			type: 'create',
+			state,
+			progress,
+			operationId: create?.operation_id ?? active?.operation_id ?? null,
+			syntheticLegacy: create?.synthetic_legacy ?? false,
+			name: backup?.name,
+			timestamp: create?.completed_at ?? create?.scheduled_for ?? active?.scheduled_for,
+			error: create?.error ?? null,
+			migration: { restoring: create?.state === 'completed' || progress >= 0.5 },
+		})
+	}
+
+	return result
+})
+
+const backupAdmonitionEntries = computed<BackupAdmonitionEntry[]>(() => {
+	const result: BackupAdmonitionEntry[] = []
+	const backupById = new Map(backups.value.map((b) => [b.id, b]))
+	const migrating = new Set(migrationIds.value)
+
+	for (const op of activeOperations.value) {
+		if (migrating.has(op.backup_id)) continue
+		const key = `${op.backup_id}:${op.operation_type}:${op.operation_id ?? 'legacy'}`
+		if (dismissedIds.has(key)) continue
+		const backup = backupById.get(op.backup_id)
+		const history = backup?.history.find(
+			(h) =>
+				h.operation_type === op.operation_type &&
+				(h.operation_id ?? null) === (op.operation_id ?? null),
+		)
+		const rawProgress = progressFor(op.backup_id, op.operation_type) ?? 0
+		result.push({
+			key,
+			backupId: op.backup_id,
+			type: op.operation_type,
+			state: history?.state ?? 'ongoing',
+			progress: rawProgress,
+			operationId: op.operation_id ?? null,
+			syntheticLegacy: op.synthetic_legacy,
+			name: backup?.name,
+			timestamp: history?.scheduled_for ?? op.scheduled_for,
+		})
+	}
+
+	for (const backup of backups.value) {
+		if (migrating.has(backup.id)) continue
+		const last = backup.history[0]
+		if (!last || !last.should_prompt) continue
+		if (last.state === 'pending' || last.state === 'ongoing') continue
+		const key = `${backup.id}:${last.operation_type}:${last.operation_id ?? 'legacy'}`
+		if (dismissedIds.has(key)) continue
+		if (result.some((r) => r.key === key)) continue
+		result.push({
+			key,
+			backupId: backup.id,
+			type: last.operation_type,
+			state: last.state,
+			progress: 0,
+			operationId: last.operation_id ?? null,
+			syntheticLegacy: last.synthetic_legacy,
+			name: backup.name,
+			timestamp: last.completed_at ?? last.scheduled_for,
+			error: last.error ?? null,
+		})
+	}
+
+	return result
+})
+
+type ServerAdmonitionItem = StackedAdmonitionItem & {
+	priority: number
+	sortIndex: number
+} & (
+		| { kind: 'installing' }
+		| { kind: 'upload' }
+		| { kind: 'fs-op'; op: FileOperation }
+		| { kind: 'backup'; entry: BackupAdmonitionEntry }
+		| { kind: 'busy-content' }
+		| { kind: 'busy-files' }
+		| { kind: 'share-update' }
+		| { kind: 'curseforge-files' }
+	)
+
+const showInstallingBanner = computed(() => {
+	return !!ctx.installation.value && ctx.installation.value.status !== 'complete'
+})
+
+function fsOpType(op: FileOperation): StackedAdmonitionItem['type'] {
+	if (op.state === 'done') return 'success'
+	if (op.state?.startsWith('fail')) return 'critical'
+	return 'info'
+}
+
+function fsOpPriority(op: FileOperation): number {
+	if (op.state?.startsWith('fail')) return 1
+	if (op.state === 'done') return 4
+	if (op.state === 'queued') return 3
+	return 2
+}
+
+function backupType(entry: BackupAdmonitionEntry): StackedAdmonitionItem['type'] {
+	if (entry.state === 'failed' || entry.state === 'timed_out') return 'critical'
+	if (entry.state === 'completed') return 'success'
+	return 'info'
+}
+
+function backupPriority(entry: BackupAdmonitionEntry): number {
+	if (entry.state === 'failed' || entry.state === 'timed_out') return 1
+	if (entry.state === 'ongoing') return 2
+	if (entry.state === 'pending') return 3
+	return 4
+}
+
+function backupItem(entry: BackupAdmonitionEntry, sortIndex: number): ServerAdmonitionItem {
+	return {
+		id: `backup-${entry.key}`,
+		type: backupType(entry),
+		dismissible: entry.state !== 'pending' && entry.state !== 'ongoing',
+		kind: 'backup',
+		entry,
+		priority: backupPriority(entry),
+		sortIndex,
+	}
+}
+
+const stackItems = computed<ServerAdmonitionItem[]>(() => {
+	if (migrationAdmonitionEntries.value.length > 0) {
+		return migrationAdmonitionEntries.value.map(backupItem)
+	}
+
+	const out: ServerAdmonitionItem[] = []
+	let sortIndex = 0
+	const curseforgeWarningId = curseforgeFilesWarningId.value
+	if (props.curseforgeFileWarningCount > 0 && !dismissedIds.has(curseforgeWarningId)) {
+		out.push({
+			id: curseforgeWarningId,
+			type: 'warning',
+			dismissible: true,
+			kind: 'curseforge-files',
+			priority: 1,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	if (showInstallingBanner.value) {
+		const failed = ctx.installation.value?.status === 'failed'
+		out.push({
+			id: 'installing',
+			type: failed ? 'critical' : 'info',
+			dismissible: failed,
+			kind: 'installing',
+			priority: 0,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	if (ctx.uploadState.value.isUploading) {
+		out.push({
+			id: 'upload-active',
+			type: 'info',
+			dismissible: false,
+			kind: 'upload',
+			priority: 2,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	for (const op of ctx.activeOperations.value) {
+		out.push({
+			id: op.id ? `fs-op-${op.id}` : `fs-op-${op.op}-${op.src}`,
+			type: fsOpType(op),
+			dismissible: !!op.id && (op.state === 'done' || !!op.state?.startsWith('fail')),
+			kind: 'fs-op',
+			op,
+			priority: fsOpPriority(op),
+			sortIndex: sortIndex++,
+		})
+	}
+
+	for (const entry of backupAdmonitionEntries.value) {
+		out.push(backupItem(entry, sortIndex++))
+	}
+
+	if (contentBusyHeader.value) {
+		const p = isOnContentTab.value ? 0 : 5
+		out.push({
+			id: 'busy-content',
+			type: 'warning',
+			dismissible: false,
+			kind: 'busy-content',
+			priority: p,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	if (filesBusyHeader.value) {
+		const p = isOnFilesTab.value ? 0 : 5
+		out.push({
+			id: 'busy-files',
+			type: 'warning',
+			dismissible: false,
+			kind: 'busy-files',
+			priority: p,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	if (needsShareUpdate.value && canSetup.value && installedOnce.value) {
+		out.push({
+			id: 'share-update',
+			type: 'info',
+			dismissible: false,
+			kind: 'share-update',
+			priority: 3,
+			sortIndex: sortIndex++,
+		})
+	}
+
+	return out.sort((a, b) => a.priority - b.priority || a.sortIndex - b.sortIndex)
+})
+
+const hasBulkDismissableItems = computed(() => stackItems.value.some((it) => it.dismissible))
+
+async function onBackupDismiss(item: BackupAdmonitionEntry) {
+	dismissedIds.add(item.key)
+	if (item.migration) forgetMigration(item.backupId)
+	if (item.syntheticLegacy || item.operationId == null) {
+		await invalidate()
+		return
+	}
+	try {
+		if (item.type === 'create') {
+			await client.archon.backups_queue_v1.ackCreate(
+				ctx.serverId,
+				ctx.worldId.value!,
+				item.operationId,
+			)
+		} else {
+			await client.archon.backups_queue_v1.ackRestore(
+				ctx.serverId,
+				ctx.worldId.value!,
+				item.operationId,
+			)
+		}
+	} catch (err) {
+		dismissedIds.delete(item.key)
+		console.error('Failed to acknowledge backup operation', err)
+	} finally {
+		await invalidate()
+	}
+}
+
+async function onBackupCancel(item: BackupAdmonitionEntry) {
+	if (!canManageBackups.value) return
+	if (cancellingIds.has(item.key)) return
+	cancellingIds.add(item.key)
+	try {
+		if (item.operationId == null) {
+			await client.archon.backups_v1.delete(ctx.serverId, ctx.worldId.value!, item.backupId)
+		} else if (item.type === 'create') {
+			await client.archon.backups_queue_v1.cancelCreate(
+				ctx.serverId,
+				ctx.worldId.value!,
+				item.operationId,
+			)
+		} else {
+			await client.archon.backups_queue_v1.cancelRestore(
+				ctx.serverId,
+				ctx.worldId.value!,
+				item.operationId,
+			)
+		}
+		await invalidate()
+	} catch (err) {
+		cancellingIds.delete(item.key)
+		throw err
+	}
+}
+
+async function onBackupRetry(item: BackupAdmonitionEntry) {
+	if (!canManageBackups.value) return
+	await client.archon.backups_queue_v1.retry(ctx.serverId, ctx.worldId.value!, item.backupId)
+	dismissedIds.add(item.key)
+	await invalidate()
+}
+
+async function onUploadCancel() {
+	if (uploadCancelling.value) return
+	const cancel = ctx.cancelUpload.value
+	if (!cancel) return
+
+	uploadCancelling.value = true
+	try {
+		await cancel()
+	} catch (err) {
+		console.error('Failed to cancel upload', err)
+	} finally {
+		uploadCancelling.value = false
+	}
+}
+
+async function onDismissAll() {
+	const tasks: Promise<unknown>[] = []
+	for (const it of stackItems.value) {
+		if (!it.dismissible) continue
+		if (it.kind === 'installing') {
+			onInstallationDismiss()
+		} else if (it.kind === 'curseforge-files') {
+			tasks.push(onCurseForgeFilesDismiss(it.id))
+		} else if (it.kind === 'fs-op' && it.op.id) {
+			const { op } = it
+			if (op.state === 'done' || op.state?.startsWith('fail')) {
+				tasks.push(ctx.dismissOperation(it.op.id, 'dismiss'))
+			}
+		} else if (it.kind === 'backup') {
+			tasks.push(onBackupDismiss(it.entry))
+		}
+	}
+	await Promise.all(tasks)
+}
+
+function onCurseForgeFilesReviewed() {
+	dismissedIds.add(curseforgeFilesWarningId.value)
+}
+
+/**
+ * Completes the side review of every addon, so the warning stays dismissed across sessions.
+ */
+async function onCurseForgeFilesDismiss(id: string) {
+	dismissedIds.add(id)
+	const worldId = ctx.worldId.value
+	if (!worldId || !canWriteFiles.value) return
+	try {
+		await client.archon.content_v1.completeSideTypeReview(ctx.serverId, worldId)
+	} catch {
+		dismissedIds.delete(id)
+	}
+}
+
+function onFileOpDismiss(item: ServerAdmonitionItem) {
+	if (item.kind === 'fs-op' && item.op.id) {
+		void ctx.dismissOperation(item.op.id, 'dismiss')
+	}
+}
+
+function onInstallationDismiss() {
+	if (ctx.installation.value) {
+		ctx.dismissInstallation(ctx.installation.value.id)
+	}
+}
+</script>
+
+<template>
+	<StackedAdmonitions
+		v-bind="$attrs"
+		:items="stackItems"
+		:dismiss-all-enabled="hasBulkDismissableItems"
+		class="w-full"
+		@dismiss-all="onDismissAll"
+	>
+		<template #item="{ item, dismissible }">
+			<CurseForgeFilesAdmonition
+				v-if="item.kind === 'curseforge-files'"
+				:file-count="props.curseforgeFileWarningCount"
+				:dismissible="dismissible"
+				:loading="curseforgeReviewModal?.loading ?? false"
+				@review="curseforgeReviewModal?.show()"
+				@dismiss="onCurseForgeFilesDismiss(item.id)"
+			/>
+			<ShareUpdateAdmonition
+				v-else-if="item.kind === 'share-update'"
+				:disabled="!canSetup || sharePending"
+				:publishing="shareActions > 0"
+				:reviewing="sharePreviews > 0"
+				@review="showPreview"
+				@prefetch="prefetchFiles"
+			/>
+			<InstallingBanner
+				v-else-if="item.kind === 'installing'"
+				:retry-disabled="!canSetup"
+				:retry-disabled-tooltip="permissionDeniedMessage"
+				@dismiss="onInstallationDismiss"
+				@retry="emit('installation-retry')"
+			/>
+			<UploadAdmonition
+				v-else-if="item.kind === 'upload'"
+				:cancelable="!!ctx.cancelUpload.value"
+				:cancelling="uploadCancelling"
+				@cancel="onUploadCancel"
+			/>
+			<FileOperationAdmonition
+				v-else-if="item.kind === 'fs-op'"
+				:op="item.op"
+				:dismissible="dismissible"
+				@dismiss="onFileOpDismiss(item)"
+			/>
+			<BackupAdmonition
+				v-else-if="item.kind === 'backup'"
+				:item="item.entry"
+				:dismissible="dismissible"
+				:cancelling="cancellingIds.has(item.entry.key)"
+				:can-manage-backups="canManageBackups"
+				:permission-denied-message="permissionDeniedMessage"
+				@dismiss="onBackupDismiss(item.entry)"
+				@cancel="onBackupCancel(item.entry)"
+				@retry="onBackupRetry(item.entry)"
+			/>
+			<Admonition
+				v-else-if="item.kind === 'busy-content'"
+				type="warning"
+				:header="formatMessage(messages.backgroundTaskRunning)"
+			>
+				{{ formatMessage(messages.contentBusyBody) }}
+			</Admonition>
+			<Admonition
+				v-else-if="item.kind === 'busy-files'"
+				type="warning"
+				:header="formatMessage(messages.backgroundTaskRunning)"
+			>
+				{{ formatMessage(messages.filesBusyBody) }}
+			</Admonition>
+		</template>
+	</StackedAdmonitions>
+	<ServerSharePushModal
+		ref="diffModal"
+		:server-id="ctx.serverId"
+		:world-id="ctx.worldId.value ?? undefined"
+		:diffs="previewQuery.data.value?.items ?? []"
+		:requires-restart="previewQuery.data.value?.diff.requires_restart"
+		:loading="previewQuery.isFetching.value"
+		:error="previewQuery.isError.value"
+		:disabled="!canSetup || sharePending || previewQuery.isError.value || !previewQuery.data.value"
+		@confirm="(paths, restart) => runAction('push', true, paths, restart)"
+		@cancel="previewOpen = false"
+		@retry="previewQuery.refetch()"
+	/>
+	<CurseForgeFilesReviewModal ref="curseforgeReviewModal" @reviewed="onCurseForgeFilesReviewed" />
+</template>

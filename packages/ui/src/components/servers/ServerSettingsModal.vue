@@ -1,0 +1,263 @@
+<script setup lang="ts">
+import type { Archon } from '@modrinth/api-client'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { computed, ref, watch } from 'vue'
+
+import type { TabbedModalTab } from '#ui/components'
+import { TabbedModal } from '#ui/components'
+import { defineMessage, defineMessages, useVIntl } from '#ui/composables/i18n'
+import { useHideSupportFeatures } from '#ui/composables/server-preferences'
+import {
+	ServerSettingsAdvancedPage,
+	ServerSettingsBackupsPage,
+	ServerSettingsGeneralPage,
+	ServerSettingsInstallationPage,
+	ServerSettingsNetworkPage,
+	ServerSettingsPropertiesPage,
+	ServerSettingsSharingPage,
+	ServerSettingsSupportPage,
+	serverSettingsTabDefinitions,
+	type ServerSettingsTabId,
+} from '#ui/layouts/shared/server-settings'
+import { provideServerSettings } from '#ui/layouts/shared/server-settings/providers/server-settings'
+import {
+	injectModrinthClient,
+	injectModrinthServerContext,
+	injectNotificationManager,
+} from '#ui/providers'
+import { commonMessages } from '#ui/utils/common-messages'
+
+type ShowOptions = {
+	serverId: string
+	tabIndex?: number
+	tabId?: ServerSettingsTabId
+}
+
+const props = defineProps<{
+	siteUrl?: string
+	resolveViewer: () => Promise<{ userId: string | null; userRole: string | null }>
+	browseModpacks?: (args: {
+		serverId: string
+		worldId: string | null
+		from: 'reset-server'
+	}) => void | Promise<void>
+}>()
+
+const { formatMessage } = useVIntl()
+const queryClient = useQueryClient()
+const client = injectModrinthClient()
+const { addNotification } = injectNotificationManager()
+
+const messages = defineMessages({
+	failedToLoadServer: {
+		id: 'app.server-settings.failed-to-load-server',
+		defaultMessage: 'Failed to load server settings',
+	},
+})
+
+const modal = ref<InstanceType<typeof TabbedModal> | null>(null)
+
+const { serverId: currentServerId, worldId, server, serverFull } = injectModrinthServerContext()
+
+const currentUserId = ref<string | null>(null)
+const currentUserRole = ref<string | null>(null)
+
+const isApp = ref(true)
+
+// Preload
+useQuery({
+	queryKey: computed(() => ['content', 'list', 'v1', currentServerId]),
+	queryFn: () =>
+		client.archon.content_v1.getAddons(currentServerId, worldId.value!, {
+			from_modpack: false,
+		}),
+	enabled: computed(() => !!worldId.value),
+	staleTime: 30_000,
+})
+
+const serverSettingsTabComponentMap = {
+	general: ServerSettingsGeneralPage,
+	installation: ServerSettingsInstallationPage,
+	sharing: ServerSettingsSharingPage,
+	network: ServerSettingsNetworkPage,
+	backups: ServerSettingsBackupsPage,
+	properties: ServerSettingsPropertiesPage,
+	advanced: ServerSettingsAdvancedPage,
+	support: ServerSettingsSupportPage,
+} as const
+
+const saveBannerTarget = ref<HTMLElement | null>(null)
+const saveBannerShown = ref(false)
+
+provideServerSettings({
+	siteUrl: computed(() => (props.siteUrl ?? 'https://modrinth.com').replace(/\/$/, '')),
+	isApp,
+	currentUserId,
+	currentUserRole,
+	browseModpacks: props.browseModpacks ?? (() => {}),
+	closeModal: () => hide(),
+	saveBanner: { target: saveBannerTarget, shown: saveBannerShown },
+})
+
+const ownerId = computed(() => server.value?.owner_id ?? 'Ghost')
+const isOwner = computed(() => currentUserId.value != null && currentUserId.value === ownerId.value)
+const isAdmin = computed(() => currentUserRole.value === 'admin')
+const hideSupportFeatures = useHideSupportFeatures()
+
+const tabs = computed<TabbedModalTab[]>(() =>
+	serverSettingsTabDefinitions.map((tab) => {
+		const ctx = {
+			serverId: currentServerId,
+			ownerId: ownerId.value,
+			serverStatus: server.value?.status,
+			isOwner: isOwner.value,
+			isAdmin: isAdmin.value,
+			isShared: !!serverFull.value?.worlds.find((world) => world.id === worldId.value)?.content
+				?.shared_instance_id,
+			hideSupportFeatures: hideSupportFeatures.value,
+		}
+		const name = defineMessage({
+			id: `server.settings.tabs.${tab.id}`,
+			defaultMessage: tab.label,
+		})
+		const shown = tab.shown ? tab.shown(ctx) : true
+
+		if (tab.external) {
+			return {
+				name,
+				icon: tab.icon,
+				color: tab.color,
+				href: tab.href ? `https://modrinth.com${tab.href(ctx)}` : undefined,
+				shown,
+			}
+		}
+
+		return {
+			name,
+			icon: tab.icon,
+			color: tab.color,
+			content: serverSettingsTabComponentMap[tab.id as keyof typeof serverSettingsTabComponentMap],
+			shown,
+		}
+	}),
+)
+
+watch(tabs, (currentTabs, previousTabs) => {
+	if (!modal.value) return
+	const selectedTab = previousTabs.filter((tab) => tab.shown !== false)[modal.value.selectedTab]
+	const selectedIndex = currentTabs
+		.filter((tab) => tab.shown !== false)
+		.findIndex((tab) => tab.content === selectedTab?.content)
+	modal.value.setTab(Math.max(selectedIndex, 0))
+})
+
+async function fetchViewer() {
+	currentUserId.value = null
+	currentUserRole.value = null
+
+	const result = await props.resolveViewer()
+	currentUserId.value = result.userId
+	currentUserRole.value = result.userRole
+}
+
+function resolveVisibleTabIndex(tabIndex?: number, tabId?: ServerSettingsTabId) {
+	const visibleTabs = tabs.value.filter((tab) => tab.shown !== false)
+	let requestedTab = tabIndex ?? 0
+	if (tabId) {
+		const defIndex = serverSettingsTabDefinitions.findIndex((d) => d.id === tabId)
+		const visibleIndex = visibleTabs.findIndex((tab) => tabs.value.indexOf(tab) === defIndex)
+		if (visibleIndex >= 0) requestedTab = visibleIndex
+	}
+	return Math.min(Math.max(requestedTab, 0), Math.max(visibleTabs.length - 1, 0))
+}
+
+async function show({ serverId, tabIndex, tabId }: ShowOptions) {
+	try {
+		const targetServerId = currentServerId
+		if (serverId !== targetServerId) {
+			console.warn(
+				`[ServerSettingsModal] Ignoring mismatched serverId "${serverId}" in favor of context "${targetServerId}"`,
+			)
+		}
+
+		const cachedServer = queryClient.getQueryData<Archon.Servers.v0.Server>([
+			'servers',
+			'detail',
+			targetServerId,
+		])
+		const cachedFull = queryClient.getQueryData<Archon.Servers.v1.ServerFull>([
+			'servers',
+			'v1',
+			'detail',
+			targetServerId,
+		])
+
+		const requestedTab = resolveVisibleTabIndex(tabIndex, tabId)
+		modal.value?.setTab(requestedTab)
+		modal.value?.show(undefined, tabIndex !== undefined || tabId ? requestedTab : undefined)
+		const fetchPromises: Promise<unknown>[] = [fetchViewer()]
+
+		if (!cachedServer) {
+			fetchPromises.push(
+				queryClient.fetchQuery({
+					queryKey: ['servers', 'detail', targetServerId],
+					queryFn: () => client.archon.servers_v0.get(targetServerId),
+				}),
+			)
+		}
+
+		if (!cachedFull) {
+			fetchPromises.push(
+				queryClient.fetchQuery({
+					queryKey: ['servers', 'v1', 'detail', targetServerId],
+					queryFn: () => client.archon.servers_v1.get(targetServerId),
+				}),
+			)
+		}
+
+		await Promise.all(fetchPromises)
+		modal.value?.setTab(resolveVisibleTabIndex(tabIndex, tabId))
+
+		if (worldId.value) {
+			queryClient.prefetchQuery({
+				queryKey: ['servers', 'properties', 'v1', targetServerId, worldId.value],
+				queryFn: () => client.archon.properties_v1.getProperties(targetServerId, worldId.value!),
+			})
+			queryClient.prefetchQuery({
+				queryKey: ['servers', 'startup', 'v1', targetServerId, worldId.value],
+				queryFn: () => client.archon.options_v1.getStartup(targetServerId, worldId.value!),
+			})
+		}
+	} catch (error) {
+		console.error(error)
+		addNotification({
+			type: 'error',
+			title: formatMessage(messages.failedToLoadServer),
+		})
+	}
+}
+
+function hide() {
+	modal.value?.hide()
+}
+
+defineExpose({ show, hide })
+</script>
+
+<template>
+	<TabbedModal
+		ref="modal"
+		:tabs="tabs"
+		:header="formatMessage(commonMessages.settingsLabel)"
+		:floating-action-bar-shown="saveBannerShown"
+		max-width="min(980px, calc(95vw - 2rem))"
+		width="min(980px, calc(95vw - 2rem))"
+	>
+		<template #floating-action-bar>
+			<div ref="saveBannerTarget" />
+		</template>
+		<template #breadcrumb>
+			<span class="truncate">{{ server.name || 'Server' }}</span>
+		</template>
+	</TabbedModal>
+</template>

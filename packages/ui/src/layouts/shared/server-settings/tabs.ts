@@ -1,0 +1,110 @@
+import type { Archon } from '@modrinth/api-client'
+import {
+	CardIcon,
+	DatabaseBackupIcon,
+	ListIcon,
+	ModrinthIcon,
+	SettingsIcon,
+	ShieldIcon,
+	TextQuoteIcon,
+	UsersIcon,
+	VersionIcon,
+	WrenchIcon,
+} from '@modrinth/assets'
+import type { Component } from 'vue'
+
+export type ServerSettingsTabId =
+	| 'general'
+	| 'installation'
+	| 'sharing'
+	| 'network'
+	| 'backups'
+	| 'properties'
+	| 'advanced'
+	| 'support'
+	| 'billing'
+	| 'admin-billing'
+
+export interface ServerSettingsTabContext {
+	serverId: string
+	ownerId: string
+	serverStatus?: Archon.Servers.v0.Status | null
+	isOwner: boolean
+	isAdmin: boolean
+	isShared: boolean
+	hideSupportFeatures: boolean
+}
+
+export interface ServerSettingsTabDefinition {
+	id: ServerSettingsTabId
+	label: string
+	icon: Component
+	color?: 'orange'
+	href?: (ctx: ServerSettingsTabContext) => string
+	external?: boolean
+	shown?: (ctx: ServerSettingsTabContext) => boolean
+}
+
+export const serverSettingsTabDefinitions: ServerSettingsTabDefinition[] = [
+	{
+		id: 'general',
+		label: 'General',
+		icon: SettingsIcon,
+	},
+	{
+		id: 'installation',
+		label: 'Installation',
+		icon: WrenchIcon,
+	},
+	{
+		id: 'sharing',
+		label: 'Sharing',
+		icon: UsersIcon,
+		shown: ({ isShared }) => isShared,
+	},
+	{
+		id: 'network',
+		label: 'Network',
+		icon: VersionIcon,
+	},
+	{
+		id: 'backups',
+		label: 'Backups',
+		icon: DatabaseBackupIcon,
+	},
+	{
+		id: 'properties',
+		label: 'Properties',
+		icon: ListIcon,
+		shown: ({ serverStatus }) => serverStatus !== 'installing',
+	},
+	{
+		id: 'advanced',
+		label: 'Advanced',
+		icon: TextQuoteIcon,
+	},
+	{
+		id: 'billing',
+		label: 'Billing',
+		icon: CardIcon,
+		href: ({ serverId }) => `/settings/billing#server-${serverId}`,
+		external: true,
+		shown: ({ isOwner }) => isOwner,
+	},
+	{
+		id: 'admin-billing',
+		label: 'Admin Billing',
+		icon: ModrinthIcon,
+		color: 'orange',
+		href: ({ ownerId }) => `/admin/billing/${ownerId}`,
+		external: true,
+		shown: ({ isAdmin, hideSupportFeatures }) => isAdmin && !hideSupportFeatures,
+	},
+	{
+		id: 'support',
+		label: 'Support',
+		icon: ShieldIcon,
+		color: 'orange',
+		shown: ({ isAdmin }) => isAdmin,
+	},
+]
