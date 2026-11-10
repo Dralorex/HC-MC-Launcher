@@ -9,10 +9,10 @@ Hollow Crown changes:
 - Windows is the only shipped bundle target (`nsis`). Mac and Linux builds are not part of v1.
 - The visible name is Hollow Crown Launcher. Colors are darker bronze, dark red, gray, and dark gray.
 - The mod browser, skins page, and Modrinth hosting pages are not offered. Packs come from the Hollow Crown catalog. Install and repair still use the upstream Modrinth pack flow.
-- Play connects to the Paper address in the catalog. Singleplayer and other servers are not offered.
+- Play connects to `play.thehollowcrownmc.com`. Singleplayer and other servers are not offered. The download site stays `https://launcher.thehollowcrownmc.com`.
 - A file flagged "host this file ourselves" is downloaded from the catalog URL instead of `cdn.modrinth.com`.
 - Before Play, instance archives are checked against the server whitelist and blacklist. A hash on both lists follows the blacklist.
-- Each Play asks the server for one account-bound token, writes the server's bytes, and removes them when the instance closes. Closing also calls `POST /v1/token/close`. A newer instance drops the older token. Token ids are one-time. The Ed25519 signing key is not in this repository.
+- Each Play asks `http://play.thehollowcrownmc.com:8765/v1/token` for one account-bound token, writes the server's bytes, and removes them when the instance closes. Closing calls `POST http://play.thehollowcrownmc.com:8765/v1/token/close`. A newer instance drops the older token. Token ids are one-time. The Ed25519 signing key is not in this repository.
 - The messenger in `messenger/fabric` is built here and installed into every instance as `mods/hollow-crown-messenger.jar`. It reads the token file and sends token id, expiry, signature, and the mod list on `hollowcrown:eventgate`. Fabric and Quilt load that jar.
 - Microsoft login uses the Hollow Crown Azure app id from `HOLLOW_CROWN_AZURE_CLIENT_ID`. The app does not ask for a password.
 - The download and the app say this is not an official Minecraft product. Minecraft itself is not in this repository.

@@ -60,8 +60,8 @@ async function installPack(pack) {
 		<div>
 			<h1 class="text-2xl font-bold text-contrast m-0">Hollow Crown catalog</h1>
 			<p class="text-secondary mt-2 mb-0">
-				Install, repair, and play the current Hollow Crown packs. Play connects to the Paper
-				network in this catalog. This is not an official Minecraft product.
+				Install, repair, and play the current Hollow Crown packs. Play connects to
+				play.thehollowcrownmc.com. This is not an official Minecraft product.
 			</p>
 		</div>
 		<p v-if="loading" class="text-secondary">Loading the catalog…</p>
@@ -75,7 +75,7 @@ async function installPack(pack) {
 			<div>
 				<h2 class="text-lg font-semibold text-contrast m-0">{{ pack.name }}</h2>
 				<p v-if="pack.summary" class="text-secondary mt-1 mb-0">{{ pack.summary }}</p>
-				<p class="text-secondary mt-1 mb-0 text-sm">{{ pack.server_address }}</p>
+				<p class="text-secondary mt-1 mb-0 text-sm">play.thehollowcrownmc.com</p>
 			</div>
 			<button
 				class="btn btn-primary"

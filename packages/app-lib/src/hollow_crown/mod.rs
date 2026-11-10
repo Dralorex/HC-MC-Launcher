@@ -23,10 +23,11 @@ const DEFAULT_CATALOG_URL: &str =
     "https://launcher.thehollowcrownmc.com/api/v1/catalog";
 const DEFAULT_LISTS_URL: &str =
     "https://launcher.thehollowcrownmc.com/api/v1/mod-lists";
-const DEFAULT_TOKEN_URL: &str =
-    "https://launcher.thehollowcrownmc.com/api/v1/join-token";
+/// Minecraft server Play joins. The token gate is a different port on this host.
+const PLAY_ADDRESS: &str = "play.thehollowcrownmc.com";
+const DEFAULT_TOKEN_URL: &str = "http://play.thehollowcrownmc.com:8765/v1/token";
 const DEFAULT_TOKEN_CLOSE_URL: &str =
-    "https://launcher.thehollowcrownmc.com/v1/token/close";
+    "http://play.thehollowcrownmc.com:8765/v1/token/close";
 
 const TOKEN_FILE: &str = "hollow-crown/join-token.json";
 const SESSION_FILE: &str = "hollow-crown/session.json";
@@ -51,11 +52,6 @@ struct Catalog {
 #[derive(Debug, Clone, Deserialize)]
 struct CatalogPack {
     #[serde(default)]
-    name: String,
-    modrinth_project_id: String,
-    modrinth_version_id: String,
-    server_address: String,
-    #[serde(default)]
     hosted_files: Vec<HostedFile>,
 }
 
@@ -63,8 +59,6 @@ struct CatalogPack {
 struct HostedFile {
     #[serde(default)]
     sha512: Option<String>,
-    #[serde(default)]
-    sha1: Option<String>,
     url: String,
 }
 
@@ -128,13 +122,10 @@ pub fn ensure_windows() -> crate::Result<()> {
 }
 
 pub async fn server_address_for_pack(
-    project_id: Option<&str>,
-    version_id: Option<&str>,
+    _project_id: Option<&str>,
+    _version_id: Option<&str>,
 ) -> crate::Result<String> {
-    let catalog = fetch_catalog().await?;
-    server_for(&catalog, project_id, version_id).map_err(|message| {
-        crate::Error::from(ErrorKind::LauncherError(message))
-    })
+    Ok(PLAY_ADDRESS.to_string())
 }
 
 pub async fn hosted_mirrors(sha512: &str) -> Vec<String> {
@@ -378,40 +369,6 @@ fn hash_match(file: &HashedFile, rule: &HashRule) -> bool {
 fn hashes_equal(left: &str, right: &str) -> bool {
     !left.trim().is_empty()
         && left.trim().eq_ignore_ascii_case(right.trim())
-}
-
-fn server_for(
-    catalog: &Catalog,
-    project_id: Option<&str>,
-    version_id: Option<&str>,
-) -> Result<String, String> {
-    if let Some(pack) = catalog.packs.iter().find(|pack| {
-        project_id.is_some_and(|id| pack.modrinth_project_id == id)
-            || version_id.is_some_and(|id| pack.modrinth_version_id == id)
-    }) {
-        if pack.server_address.trim().is_empty() {
-            return Err(format!(
-                "The Hollow Crown catalog entry for {} has no server address.",
-                pack.name
-            ));
-        }
-        return Ok(pack.server_address.clone());
-    }
-    let mut addresses = catalog
-        .packs
-        .iter()
-        .map(|pack| pack.server_address.trim().to_string())
-        .filter(|address| !address.is_empty())
-        .collect::<Vec<_>>();
-    addresses.sort();
-    addresses.dedup();
-    if addresses.len() == 1 {
-        return Ok(addresses.remove(0));
-    }
-    Err(
-        "This pack is not on the Hollow Crown catalog, so Play cannot choose a server."
-            .into(),
-    )
 }
 
 fn hosted_url(catalog: &Catalog, sha512: &str) -> Option<String> {
@@ -708,13 +665,8 @@ mod tests {
     fn hosted_flag_replaces_the_download_url() {
         let catalog = Catalog {
             packs: vec![CatalogPack {
-                name: "Events".into(),
-                modrinth_project_id: "proj".into(),
-                modrinth_version_id: "ver".into(),
-                server_address: "play.example.test".into(),
                 hosted_files: vec![HostedFile {
                     sha512: Some("abc".into()),
-                    sha1: None,
                     url: "https://launcher.thehollowcrownmc.com/files/mod.jar"
                         .into(),
                 }],
@@ -727,30 +679,12 @@ mod tests {
         assert_eq!(hosted_url(&catalog, "nope"), None);
     }
 
-    #[test]
-    fn unmatched_pack_uses_the_only_network() {
-        let catalog = Catalog {
-            packs: vec![
-                CatalogPack {
-                    name: "A".into(),
-                    modrinth_project_id: "a".into(),
-                    modrinth_version_id: "1".into(),
-                    server_address: "play.example.test".into(),
-                    hosted_files: vec![],
-                },
-                CatalogPack {
-                    name: "B".into(),
-                    modrinth_project_id: "b".into(),
-                    modrinth_version_id: "2".into(),
-                    server_address: "play.example.test".into(),
-                    hosted_files: vec![],
-                },
-            ],
-        };
-        assert_eq!(
-            server_for(&catalog, None, None).unwrap(),
-            "play.example.test"
-        );
+    #[tokio::test]
+    async fn play_connects_to_the_paper_network() {
+        let address = server_address_for_pack(Some("any-pack"), Some("any-version"))
+            .await
+            .unwrap();
+        assert_eq!(address, "play.thehollowcrownmc.com");
     }
 
     #[test]

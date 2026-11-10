@@ -16,7 +16,7 @@ Ordinary server join is unchanged. This protocol is what the event gate in HC-Pl
       "summary": "",
       "modrinth_project_id": "project id",
       "modrinth_version_id": "version id",
-      "server_address": "the Paper address",
+      "server_address": "play.thehollowcrownmc.com",
       "icon_url": null,
       "hosted_files": [
         {
@@ -30,7 +30,7 @@ Ordinary server join is unchanged. This protocol is what the event gate in HC-Pl
 }
 ```
 
-`server_address` is where Play connects. A `hosted_files` entry changes only the download URL for that hash. The Modrinth file stays public.
+Play connects to `play.thehollowcrownmc.com`. It does not follow a different catalog address. A `hosted_files` entry changes only the download URL for that hash. Those downloads stay on `https://launcher.thehollowcrownmc.com`. The Modrinth file stays public.
 
 Override the URL with `HOLLOW_CROWN_CATALOG_URL`.
 
@@ -53,7 +53,7 @@ Override the URL with `HOLLOW_CROWN_LISTS_URL`.
 
 ## Join token
 
-`POST https://launcher.thehollowcrownmc.com/api/v1/join-token`
+`POST http://play.thehollowcrownmc.com:8765/v1/token`
 
 ```json
 {
@@ -73,7 +73,7 @@ The response body is stored unchanged at `hollow-crown/join-token.json` in the i
 
 A token id is one-time. If it expires before the client connects, it is dead. Closing the instance also tells the server to drop that id:
 
-`POST https://launcher.thehollowcrownmc.com/v1/token/close`
+`POST http://play.thehollowcrownmc.com:8765/v1/token/close`
 
 ```json
 { "token_id": "id", "account_uuid": "minecraft uuid" }
