@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "launcher.thehollowcrownmc.com" }],
+      "destination": "/download.html"
+    },
+    {
+      "source": "/",
+      "destination": "/hub.html"
+    }
+  ]
+}

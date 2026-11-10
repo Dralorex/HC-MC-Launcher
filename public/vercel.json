@@ -2,12 +2,11 @@
   "rewrites": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "thehollowcrownmc.com" }],
-      "destination": "/hub.html"
+      "has": [{ "type": "host", "value": "launcher.thehollowcrownmc.com" }],
+      "destination": "/download.html"
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "www.thehollowcrownmc.com" }],
       "destination": "/hub.html"
     }
   ]
