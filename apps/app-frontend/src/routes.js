@@ -7,6 +7,10 @@ export default new createRouter({
 	routes: [
 		{
 			path: '/',
+			redirect: '/catalog',
+		},
+		{
+			path: '/library',
 			name: 'Home',
 			component: () => import('@/pages/Index.vue'),
 			meta: {

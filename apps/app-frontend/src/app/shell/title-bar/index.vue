@@ -22,8 +22,8 @@ const router = useRouter()
 const { formatMessage } = useVIntl()
 const messages = defineMessages({
 	brand: {
-		id: 'app.navigation.hollow-crown-modpacks',
-		defaultMessage: 'The Hollow Crown Modpacks',
+		id: 'app.navigation.hollow-crown-launcher',
+		defaultMessage: 'Hollow Crown Launcher',
 	},
 	goBack: { id: 'app.navigation.go-back', defaultMessage: 'Go back' },
 	goForward: { id: 'app.navigation.go-forward', defaultMessage: 'Go forward' },

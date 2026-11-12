@@ -18,6 +18,7 @@ const packs = ref([])
 const loading = ref(true)
 const installingId = ref('')
 const loadError = ref('')
+const installHints = ref({})
 
 onMounted(async () => {
 	try {
@@ -32,8 +33,25 @@ onMounted(async () => {
 	}
 })
 
+function formatInstallError(error, pack) {
+	const raw = String(error?.message || error || '')
+	const lower = raw.toLowerCase()
+	if (
+		lower.includes('404') ||
+		lower.includes('not found') ||
+		lower.includes('does not exist') ||
+		lower.includes('unknown project') ||
+		lower.includes('project not found') ||
+		lower.includes('version not found')
+	) {
+		return `This pack is listed in the Hollow Crown catalog, but Modrinth returned 404 for project “${pack.modrinth_project_id}” / version “${pack.modrinth_version_id}”. Publish or un-private that Modrinth pack (or update the catalog ids), then try Install again.`
+	}
+	return raw || 'Install failed.'
+}
+
 async function installPack(pack) {
 	installingId.value = pack.modrinth_project_id
+	installHints.value = { ...installHints.value, [pack.modrinth_project_id]: '' }
 	try {
 		const job = await install_create_modpack_instance({
 			type: 'fromVersionId',
@@ -48,7 +66,9 @@ async function installPack(pack) {
 			await router.push(`/instance/${encodeURIComponent(instanceId)}/`)
 		}
 	} catch (error) {
-		handleError(error)
+		const message = formatInstallError(error, pack)
+		installHints.value = { ...installHints.value, [pack.modrinth_project_id]: message }
+		handleError(new Error(message))
 	} finally {
 		installingId.value = ''
 	}
@@ -70,20 +90,28 @@ async function installPack(pack) {
 		<article
 			v-for="pack in packs"
 			:key="pack.modrinth_project_id"
-			class="bg-bg-raised rounded-xl p-4 flex items-center justify-between gap-4"
+			class="bg-bg-raised rounded-xl p-4 flex flex-col gap-3"
 		>
-			<div>
-				<h2 class="text-lg font-semibold text-contrast m-0">{{ pack.name }}</h2>
-				<p v-if="pack.summary" class="text-secondary mt-1 mb-0">{{ pack.summary }}</p>
-				<p class="text-secondary mt-1 mb-0 text-sm">play.thehollowcrownmc.com</p>
+			<div class="flex items-center justify-between gap-4">
+				<div>
+					<h2 class="text-lg font-semibold text-contrast m-0">{{ pack.name }}</h2>
+					<p v-if="pack.summary" class="text-secondary mt-1 mb-0">{{ pack.summary }}</p>
+					<p class="text-secondary mt-1 mb-0 text-sm">play.thehollowcrownmc.com</p>
+				</div>
+				<button
+					class="btn btn-primary shrink-0"
+					:disabled="installingId === pack.modrinth_project_id"
+					@click="installPack(pack)"
+				>
+					{{ installingId === pack.modrinth_project_id ? 'Installing…' : 'Install' }}
+				</button>
 			</div>
-			<button
-				class="btn btn-primary"
-				:disabled="installingId === pack.modrinth_project_id"
-				@click="installPack(pack)"
+			<p
+				v-if="installHints[pack.modrinth_project_id]"
+				class="text-sm text-secondary m-0"
 			>
-				{{ installingId === pack.modrinth_project_id ? 'Installing…' : 'Install' }}
-			</button>
+				{{ installHints[pack.modrinth_project_id] }}
+			</p>
 		</article>
 	</div>
 </template>

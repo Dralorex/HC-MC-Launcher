@@ -25,7 +25,6 @@ import {
 import { useElementSize, useWindowSize } from '@vueuse/core'
 import {
 	computed,
-	inject,
 	nextTick,
 	onErrorCaptured,
 	onMounted,
@@ -33,6 +32,7 @@ import {
 	ref,
 	watch,
 } from 'vue'
+import { useRouter } from 'vue-router'
 
 import GroupActionButtons from '@/components/ui/library/instance-group/group-action-buttons.vue'
 import InstanceCard from '@/components/ui/library/instance-group/instance-card.vue'
@@ -86,7 +86,7 @@ const {
 	instanceGroupDragTarget,
 	getInstanceGroupDropState,
 } = useLibrary()
-const showCreationModal = inject<() => void>('showCreationModal')
+const router = useRouter()
 
 const instanceComponents = new Map<string, InstanceCardExposed>()
 const groupDropTarget = ref<HTMLElement>()
@@ -294,9 +294,9 @@ const messages = defineMessages({
 		id: 'app.library.group.delete-description',
 		defaultMessage: 'Instances in this group will be ungrouped.',
 	},
-	newInstance: {
-		id: 'app.library.context-menu.create-instance',
-		defaultMessage: 'New instance',
+	openModpacks: {
+		id: 'app.library.context-menu.open-modpacks',
+		defaultMessage: 'Open Modpacks',
 	},
 	addToGroup: {
 		id: 'app.library.group.context-menu.add-to-group',
@@ -353,10 +353,10 @@ function openGroupContextMenu(event: MouseEvent) {
 	groupContextMenuOpen.value = true
 	groupOptions.value?.open(event, [
 		{
-			id: 'new_instance',
-			label: formatMessage(messages.newInstance),
+			id: 'open_modpacks',
+			label: formatMessage(messages.openModpacks),
 			icon: PlusIcon,
-			action: () => showCreationModal?.(),
+			action: () => router.push('/catalog'),
 		},
 		{
 			id: 'add_instances',

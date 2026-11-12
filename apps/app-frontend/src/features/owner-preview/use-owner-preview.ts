@@ -7,7 +7,7 @@ const ownerPreview = ref(false)
 const ready = ref(false)
 let loadPromise: Promise<void> | null = null
 
-async function refreshOwnerPreview() {
+export async function refreshOwnerPreview() {
 	try {
 		ownerPreview.value = Boolean(
 			await invoke<boolean>('plugin:hollow-crown|hollow_crown_owner_preview'),
