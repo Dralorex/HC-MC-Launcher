@@ -33,6 +33,7 @@ import { platform as getOsPlatform, version as getOsVersion } from '@tauri-apps/
 import { computed, ref } from 'vue'
 
 import { useAppSettings } from '@/composables/use-app-settings.ts'
+import { useOwnerPreview } from '@/features/owner-preview/use-owner-preview'
 import PrivacySettings from '@/features/settings/account/privacy-settings.vue'
 import ProfileSettings from '@/features/settings/account/profile-settings.vue'
 import SocialSettings from '@/features/settings/account/social-settings.vue'
@@ -55,6 +56,7 @@ import { provideAppSettingsModal, type UnsavedChangesController } from './contex
 
 // TODO: Apply COMPONENT_STRUCTURE.md here and extract out common setting option components
 const appSettings = useAppSettings()
+const { ownerPreview } = useOwnerPreview()
 
 const { formatMessage } = useVIntl()
 const { handleError } = injectNotificationManager()
@@ -136,12 +138,14 @@ const tabs = [
 		category: tabCategories.account,
 		icon: UserIcon,
 		content: ProfileSettings,
+		ownerOnly: true,
 	},
 	{
 		name: commonSettingsMessages.social,
 		category: tabCategories.account,
 		icon: HeartHandshakeIcon,
 		content: SocialSettings,
+		ownerOnly: true,
 	},
 	{
 		name: defineMessage({
@@ -209,7 +213,10 @@ const tabs = [
 ]
 
 const availableTabs = computed(() =>
-	tabs.filter((tab) => !tab.developerOnly || appSettings.devMode),
+	tabs.filter(
+		(tab) =>
+			(!tab.developerOnly || appSettings.devMode) && (!tab.ownerOnly || ownerPreview.value),
+	),
 )
 
 const modal = ref<InstanceType<typeof TabbedModal> | null>(null)

@@ -45,9 +45,9 @@ Override the URL with `HOLLOW_CROWN_CATALOG_URL`.
 }
 ```
 
-Before Play, the launcher hashes jars, zips, and litemods in `mods`, `resourcepacks`, and `shaderpacks`. A hash on the blacklist is refused even when it is also on the whitelist. Any other unknown archive is refused. A required whitelist hash must be present. Match by hash, not by file name.
+Before Play, the launcher hashes jars, zips, and litemods in `mods`, `resourcepacks`, and `shaderpacks`, and still sends that list with the join token. The launcher does not ban or stop Play for blacklist, unknown, or missing required whitelist hashes. HC-Platform owns allow/deny. Match by hash, not by file name.
 
-The messenger jar is installed on every Play, so its hash has to be on the whitelist or Play stops.
+The messenger jar is installed on every Play. Its hash should be on the whitelist so the plugin can treat it as allowed.
 
 Override the URL with `HOLLOW_CROWN_LISTS_URL`.
 
@@ -100,4 +100,4 @@ The payload is UTF-8 JSON:
 
 `token_id`, `expiry`, and `signature` are copied from `hollow-crown/join-token.json`. The mod list is the jars, zips, and litemods under `mods`, `resourcepacks`, and `shaderpacks`.
 
-The launcher writes `mods/hollow-crown-messenger.jar` into every instance before Play. The jar is the Fabric build from `messenger/fabric`. Fabric and Quilt load it. Forge, NeoForge, and vanilla do not, so Play stops on those loaders. The mod does not contain a key, the whitelist, the blacklist, or staff checks.
+The launcher writes `mods/hollow-crown-messenger.jar` into every instance before Play. The jar is the Fabric build from `messenger/fabric`. Fabric and Quilt load it. Forge, NeoForge, and vanilla do not, so Play stops on those loaders (the messenger cannot run). The mod does not contain a key, the whitelist, the blacklist, or staff checks.

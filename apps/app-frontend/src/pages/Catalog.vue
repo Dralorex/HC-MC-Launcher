@@ -26,7 +26,7 @@ onMounted(async () => {
 	} catch (error) {
 		loadError.value =
 			error?.message ||
-			'The Hollow Crown catalog could not be loaded. Install stays on the catalog once it is available.'
+			'The Hollow Crown Modpacks list could not be loaded. Install stays here once packs are available.'
 	} finally {
 		loading.value = false
 	}
@@ -58,13 +58,13 @@ async function installPack(pack) {
 <template>
 	<div class="p-6 flex flex-col gap-4 max-w-3xl">
 		<div>
-			<h1 class="text-2xl font-bold text-contrast m-0">Hollow Crown catalog</h1>
+			<h1 class="text-2xl font-bold text-contrast m-0">The Hollow Crown Modpacks</h1>
 			<p class="text-secondary mt-2 mb-0">
-				Install, repair, and play the current Hollow Crown packs. Play connects to
+				Install, repair, and play Hollow Crown packs. Play connects to
 				play.thehollowcrownmc.com. This is not an official Minecraft product.
 			</p>
 		</div>
-		<p v-if="loading" class="text-secondary">Loading the catalog…</p>
+		<p v-if="loading" class="text-secondary">Loading modpacks…</p>
 		<p v-else-if="loadError" class="text-secondary">{{ loadError }}</p>
 		<p v-else-if="packs.length === 0" class="text-secondary">No packs are published yet.</p>
 		<article

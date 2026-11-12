@@ -32,6 +32,8 @@ const DEFAULT_TOKEN_CLOSE_URL: &str =
 const TOKEN_FILE: &str = "hollow-crown/join-token.json";
 const SESSION_FILE: &str = "hollow-crown/session.json";
 const REGISTRY_FILE: &str = "hollow-crown-sessions.json";
+const EMAILS_FILE: &str = "hollow-crown-microsoft-emails.json";
+const OWNER_PREVIEW_EMAIL: &str = "dralorex@gmail.com";
 const MESSENGER_FILE_NAME: &str = "hollow-crown-messenger.jar";
 
 /// Fabric and Quilt build of the messenger. It only reads the token file.
@@ -145,13 +147,8 @@ pub async fn catalog_value() -> crate::Result<Value> {
     let value: Value = serde_json::from_slice(&bytes).with_context(|| {
         "Hollow Crown catalog was not valid JSON".to_string()
     })?;
-    let catalog: Catalog = serde_json::from_value(value.clone())
+    let _catalog: Catalog = serde_json::from_value(value.clone())
         .context("Hollow Crown catalog is missing packs")?;
-    if catalog.packs.is_empty() {
-        bail!(ErrorKind::LauncherError(
-            "Hollow Crown catalog has no packs.".into(),
-        ));
-    }
     Ok(value)
 }
 
@@ -167,9 +164,8 @@ pub async fn begin_session(
     install_messenger(instance_dir, loader)?;
     let lists = fetch_lists().await?;
     let files = hash_instance(instance_dir).await?;
-    decide_scan(&files, &lists).map_err(|message| {
-        crate::Error::from(ErrorKind::LauncherError(message))
-    })?;
+    // Hash and scan for the messenger payload. Allow/deny stays in HC-Platform.
+    log_scan(&files, &lists);
 
     let token_bytes = mint_token(
         account_uuid,
@@ -316,23 +312,26 @@ fn is_archive(path: &Path) -> bool {
     )
 }
 
-fn decide_scan(files: &[HashedFile], lists: &ModLists) -> Result<(), String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScanNote {
+    Blacklisted(String),
+    Unknown(String),
+    MissingRequired,
+}
+
+fn scan_notes(files: &[HashedFile], lists: &ModLists) -> Vec<ScanNote> {
+    let mut notes = Vec::new();
     let mut allowed = Vec::new();
     for file in files {
         if lists.blacklist.iter().any(|rule| hash_match(file, rule)) {
-            return Err(format!(
-                "Play stopped. {} is on the Hollow Crown blacklist.",
-                file.path
-            ));
+            notes.push(ScanNote::Blacklisted(file.path.clone()));
+            continue;
         }
         if lists.whitelist.iter().any(|rule| hash_match(file, rule)) {
             allowed.push(file);
             continue;
         }
-        return Err(format!(
-            "Play stopped. {} is not on the Hollow Crown whitelist.",
-            file.path
-        ));
+        notes.push(ScanNote::Unknown(file.path.clone()));
     }
     for rule in &lists.whitelist {
         if !rule.required {
@@ -340,13 +339,26 @@ fn decide_scan(files: &[HashedFile], lists: &ModLists) -> Result<(), String> {
         }
         let present = allowed.iter().any(|file| hash_match(file, rule));
         if !present {
-            return Err(
-                "Play stopped. A required Hollow Crown file is missing."
-                    .to_string(),
-            );
+            notes.push(ScanNote::MissingRequired);
         }
     }
-    Ok(())
+    notes
+}
+
+fn log_scan(files: &[HashedFile], lists: &ModLists) {
+    for note in scan_notes(files, lists) {
+        match note {
+            ScanNote::Blacklisted(path) => tracing::warn!(
+                "Hollow Crown scan: {path} is on the blacklist. The plugin decides allow/deny."
+            ),
+            ScanNote::Unknown(path) => tracing::warn!(
+                "Hollow Crown scan: {path} is not on the whitelist. The plugin decides allow/deny."
+            ),
+            ScanNote::MissingRequired => tracing::warn!(
+                "Hollow Crown scan: a required whitelist file is missing. The plugin decides allow/deny."
+            ),
+        }
+    }
 }
 
 fn hash_match(file: &HashedFile, rule: &HashRule) -> bool {
@@ -581,6 +593,110 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct MicrosoftEmails {
+    #[serde(default)]
+    accounts: HashMap<String, String>,
+}
+
+/// Remembers the Microsoft account email for owner-preview checks.
+pub fn remember_microsoft_email(account_uuid: &str, email: &str) {
+    let Ok(email) = normalize_email(email) else {
+        return;
+    };
+    let Some(settings_dir) = settings_dir() else {
+        return;
+    };
+    let _ = with_emails(&settings_dir, |emails| {
+        emails
+            .accounts
+            .insert(account_uuid.to_string(), email.clone());
+    });
+}
+
+/// True when the signed-in Microsoft account is the Hollow Crown owner,
+/// or when `HOLLOW_CROWN_OWNER_PREVIEW=1` is set for local testing.
+pub async fn owner_preview_enabled() -> bool {
+    if std::env::var("HOLLOW_CROWN_OWNER_PREVIEW")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let Some(settings_dir) = settings_dir() else {
+        return false;
+    };
+    let emails = read_emails(&settings_dir);
+    emails.accounts.values().any(|email| {
+        normalize_email(email)
+            .map(|value| value == OWNER_PREVIEW_EMAIL)
+            .unwrap_or(false)
+    })
+}
+
+pub fn email_from_id_token(id_token: &str) -> Option<String> {
+    let payload = id_token.split('.').nth(1)?;
+    let decoded = decode_jwt_segment(payload)?;
+    let value: Value = serde_json::from_slice(&decoded).ok()?;
+    value
+        .get("email")
+        .and_then(Value::as_str)
+        .and_then(|email| normalize_email(email).ok())
+}
+
+fn normalize_email(email: &str) -> Result<String, ()> {
+    let email = email.trim().to_ascii_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        return Err(());
+    }
+    Ok(email)
+}
+
+fn decode_jwt_segment(segment: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    use base64::prelude::{BASE64_URL_SAFE, BASE64_URL_SAFE_NO_PAD};
+    BASE64_URL_SAFE_NO_PAD
+        .decode(segment)
+        .ok()
+        .or_else(|| BASE64_URL_SAFE.decode(segment).ok())
+}
+
+fn settings_dir() -> Option<PathBuf> {
+    if let Some(state) = crate::State::get_if_initialized() {
+        return Some(state.directories.settings_dir.clone());
+    }
+    crate::state::DirectoryInfo::initial_settings_dir_path(
+        "com.hollowcrown.launcher",
+    )
+}
+
+fn read_emails(settings_dir: &Path) -> MicrosoftEmails {
+    let path = settings_dir.join(EMAILS_FILE);
+    match std::fs::read(&path) {
+        Ok(bytes) if !bytes.is_empty() => {
+            serde_json::from_slice(&bytes).unwrap_or_default()
+        }
+        _ => MicrosoftEmails::default(),
+    }
+}
+
+fn with_emails<T>(
+    settings_dir: &Path,
+    update: impl FnOnce(&mut MicrosoftEmails) -> T,
+) -> crate::Result<T> {
+    std::fs::create_dir_all(settings_dir).with_context(|| {
+        format!("creating {}", settings_dir.display())
+    })?;
+    let path = settings_dir.join(EMAILS_FILE);
+    let mut emails = read_emails(settings_dir);
+    let result = update(&mut emails);
+    let encoded = serde_json::to_vec_pretty(&emails)
+        .context("encoding Hollow Crown Microsoft emails")?;
+    std::fs::write(&path, encoded)
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -608,39 +724,63 @@ mod tests {
             whitelist: vec![rule(Some("abc"), None, true)],
             blacklist: vec![rule(Some("ABC"), None, false)],
         };
-        let error = decide_scan(&files, &lists).unwrap_err();
-        assert!(error.contains("blacklist"), "{error}");
+        let notes = scan_notes(&files, &lists);
+        assert!(
+            notes
+                .iter()
+                .any(|note| matches!(note, ScanNote::Blacklisted(_))),
+            "{notes:?}"
+        );
     }
 
     #[test]
-    fn unknown_jar_is_refused() {
+    fn unknown_jar_is_noted_without_blocking_play() {
         let files = vec![file("abc", "def")];
         let lists = ModLists {
             whitelist: vec![rule(Some("other"), None, false)],
             blacklist: vec![],
         };
-        let error = decide_scan(&files, &lists).unwrap_err();
-        assert!(error.contains("whitelist"), "{error}");
+        let notes = scan_notes(&files, &lists);
+        assert!(
+            notes
+                .iter()
+                .any(|note| matches!(note, ScanNote::Unknown(_))),
+            "{notes:?}"
+        );
     }
 
     #[test]
-    fn required_file_must_be_present() {
+    fn required_file_absence_is_noted_without_blocking_play() {
         let lists = ModLists {
             whitelist: vec![rule(Some("abc"), None, true)],
             blacklist: vec![],
         };
-        let error = decide_scan(&[], &lists).unwrap_err();
-        assert!(error.contains("required"), "{error}");
+        let notes = scan_notes(&[], &lists);
+        assert!(
+            notes
+                .iter()
+                .any(|note| matches!(note, ScanNote::MissingRequired)),
+            "{notes:?}"
+        );
     }
 
     #[test]
-    fn matching_whitelist_hash_is_allowed() {
+    fn matching_whitelist_hash_has_no_scan_notes() {
         let files = vec![file("abc", "def")];
         let lists = ModLists {
             whitelist: vec![rule(None, Some("def"), true)],
             blacklist: vec![],
         };
-        decide_scan(&files, &lists).unwrap();
+        assert!(scan_notes(&files, &lists).is_empty());
+    }
+
+    #[test]
+    fn email_is_read_from_an_id_token_payload() {
+        // {"email":"dralorex@gmail.com"}
+        let email = email_from_id_token(
+            "aaa.eyJlbWFpbCI6ImRyYWxvcmV4QGdtYWlsLmNvbSJ9.bbb",
+        );
+        assert_eq!(email.as_deref(), Some("dralorex@gmail.com"));
     }
 
     #[test]

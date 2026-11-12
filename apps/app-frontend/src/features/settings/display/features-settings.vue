@@ -17,6 +17,7 @@ import {
 	QUICK_INSTANCE_LIMIT_MAX,
 	useQuickInstanceLimit,
 } from '@/composables/use-quick-instance-limit.ts'
+import { useOwnerPreview } from '@/features/owner-preview/use-owner-preview'
 import { injectAppSettingsModal } from '@/features/settings/app-settings-modal/context'
 import { type GlobalSyncedOptions, set_global_synced_option } from '@/helpers/instance.ts'
 import {
@@ -32,6 +33,7 @@ import { screenshotKeys } from '@/pages/instance/query-options.ts'
 const appSettings = useAppSettings()
 const { formatMessage } = useVIntl()
 const auth = injectAuth()
+const { ownerPreview } = useOwnerPreview()
 const { handleError } = injectNotificationManager()
 const { updatePreferences } = injectUserPreferences()
 const settingsModal = injectAppSettingsModal()
@@ -50,7 +52,11 @@ const messages = defineMessages({
 	},
 	syncAcrossDevicesSignedOutTooltip: {
 		id: 'app.features-settings.sync-across-devices.signed-out-tooltip',
-		defaultMessage: 'Sign into a Modrinth account to sync settings.',
+		defaultMessage: 'Sign into a Hollow Crown account to sync settings.',
+	},
+	syncAcrossDevicesUnavailableTooltip: {
+		id: 'app.features-settings.sync-across-devices.unavailable-tooltip',
+		defaultMessage: 'Hollow Crown account sync is not available yet.',
 	},
 	instancePagesTitle: {
 		id: 'app.features-settings.instance-pages.title',
@@ -261,14 +267,20 @@ onBeforeUnmount(() => {
 			</div>
 			<span
 				v-tooltip="
-					!auth.user.value ? formatMessage(messages.syncAcrossDevicesSignedOutTooltip) : undefined
+					!ownerPreview
+						? formatMessage(messages.syncAcrossDevicesUnavailableTooltip)
+						: !auth.user.value
+							? formatMessage(messages.syncAcrossDevicesSignedOutTooltip)
+							: undefined
 				"
 				class="inline-flex shrink-0"
 			>
 				<Toggle
 					id="sync-features-across-devices"
-					:model-value="Boolean(auth.user.value) && current.syncFeaturesAcrossDevices"
-					:disabled="!auth.user.value"
+					:model-value="
+						Boolean(ownerPreview && auth.user.value) && current.syncFeaturesAcrossDevices
+					"
+					:disabled="!ownerPreview || !auth.user.value"
 					aria-labelledby="sync-features-across-devices-label"
 					@update:model-value="current.syncFeaturesAcrossDevices = $event"
 				/>

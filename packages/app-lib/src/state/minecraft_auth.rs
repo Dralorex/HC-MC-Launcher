@@ -253,6 +253,18 @@ pub async fn login_finish(
         ..credentials.offline_profile
     };
 
+    if let Some(email) = oauth_token
+        .value
+        .id_token
+        .as_deref()
+        .and_then(crate::hollow_crown::email_from_id_token)
+    {
+        crate::hollow_crown::remember_microsoft_email(
+            &online_profile.id.to_string(),
+            &email,
+        );
+    }
+
     credentials.upsert(exec).await?;
 
     Ok(credentials)
@@ -351,6 +363,18 @@ impl Credentials {
         self.refresh_token = oauth_token.value.refresh_token;
         self.expires = oauth_token.date
             + Duration::seconds(oauth_token.value.expires_in as i64);
+
+        if let Some(email) = oauth_token
+            .value
+            .id_token
+            .as_deref()
+            .and_then(crate::hollow_crown::email_from_id_token)
+        {
+            crate::hollow_crown::remember_microsoft_email(
+                &self.offline_profile.id.to_string(),
+                &email,
+            );
+        }
 
         self.upsert(exec).await?;
 
@@ -861,7 +885,7 @@ impl DeviceTokenPair {
 
 const AZURE_REDIRECT_URL: &str =
     "https://login.microsoftonline.com/common/oauth2/nativeclient";
-const AZURE_SCOPE: &str = "XboxLive.signin offline_access";
+const AZURE_SCOPE: &str = "XboxLive.signin offline_access openid email";
 const AZURE_AUTHORIZE_URL: &str =
     "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
 const AZURE_TOKEN_URL: &str =
@@ -1004,6 +1028,8 @@ struct OAuthToken {
     // pub scope: String,
     pub access_token: String,
     pub refresh_token: String,
+    #[serde(default)]
+    pub id_token: Option<String>,
     // pub user_id: String,
     // pub foci: String,
 }

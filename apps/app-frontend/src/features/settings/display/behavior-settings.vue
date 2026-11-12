@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { onBeforeUnmount, onMounted } from 'vue'
 
 import { useAppSettings } from '@/composables/use-app-settings.ts'
+import { useOwnerPreview } from '@/features/owner-preview/use-owner-preview'
 import { injectAppSettingsModal } from '@/features/settings/app-settings-modal/context'
 import HiddenInstancesSettings from '@/features/settings/display/hidden-instances-settings/index.vue'
 import {
@@ -25,6 +26,7 @@ import {
 const appSettings = useAppSettings()
 const { formatMessage } = useVIntl()
 const auth = injectAuth()
+const { ownerPreview } = useOwnerPreview()
 const { handleError } = injectNotificationManager()
 const { updatePreferences } = injectUserPreferences()
 const settingsModal = injectAppSettingsModal()
@@ -42,7 +44,11 @@ const messages = defineMessages({
 	},
 	syncAcrossDevicesSignedOutTooltip: {
 		id: 'app.behavior-settings.sync-across-devices.signed-out-tooltip',
-		defaultMessage: 'Sign into a Modrinth account to sync settings.',
+		defaultMessage: 'Sign into a Hollow Crown account to sync settings.',
+	},
+	syncAcrossDevicesUnavailableTooltip: {
+		id: 'app.behavior-settings.sync-across-devices.unavailable-tooltip',
+		defaultMessage: 'Hollow Crown account sync is not available yet.',
 	},
 	startupAndNavigationTitle: {
 		id: 'app.behavior-settings.startup-and-navigation.title',
@@ -62,7 +68,7 @@ const messages = defineMessages({
 	},
 	minimizeLauncherDescription: {
 		id: 'app.appearance-settings.minimize-launcher.description',
-		defaultMessage: 'Minimize Modrinth App when Minecraft starts.',
+		defaultMessage: 'Minimize Hollow Crown Launcher when Minecraft starts.',
 	},
 	refocusOnGameCloseTitle: {
 		id: 'app.behavior-settings.refocus-on-game-close.title',
@@ -70,7 +76,7 @@ const messages = defineMessages({
 	},
 	refocusOnGameCloseDescription: {
 		id: 'app.behavior-settings.refocus-on-game-close.description',
-		defaultMessage: 'Bring Modrinth App to the foreground when Minecraft exits.',
+		defaultMessage: 'Bring Hollow Crown Launcher to the foreground when Minecraft exits.',
 	},
 	defaultLandingPageHome: {
 		id: 'app.appearance-settings.default-landing-page.home',
@@ -251,14 +257,20 @@ onBeforeUnmount(() => {
 			</div>
 			<span
 				v-tooltip="
-					!auth.user.value ? formatMessage(messages.syncAcrossDevicesSignedOutTooltip) : undefined
+					!ownerPreview
+						? formatMessage(messages.syncAcrossDevicesUnavailableTooltip)
+						: !auth.user.value
+							? formatMessage(messages.syncAcrossDevicesSignedOutTooltip)
+							: undefined
 				"
 				class="inline-flex shrink-0"
 			>
 				<Toggle
 					id="sync-behavior-across-devices"
-					:model-value="Boolean(auth.user.value) && current.syncBehaviorAcrossDevices"
-					:disabled="!auth.user.value"
+					:model-value="
+						Boolean(ownerPreview && auth.user.value) && current.syncBehaviorAcrossDevices
+					"
+					:disabled="!ownerPreview || !auth.user.value"
 					aria-labelledby="sync-behavior-across-devices-label"
 					@update:model-value="current.syncBehaviorAcrossDevices = $event"
 				/>
