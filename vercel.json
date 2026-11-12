@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/v1/catalog",
+      "destination": "/api/v1/catalog.json"
+    },
+    {
+      "source": "/api/v1/mod-lists",
+      "destination": "/api/v1/mod-lists.json"
+    },
+    {
       "source": "/",
       "has": [{ "type": "host", "value": "launcher.thehollowcrownmc.com" }],
       "destination": "/download.html"

@@ -24,7 +24,8 @@ export default new createRouter({
 		},
 		{
 			path: '/skins',
-			redirect: '/',
+			name: 'Skins',
+			component: () => import('@/pages/Skins.vue'),
 		},
 		{
 			path: '/hosting/manage/:pathMatch(.*)*',

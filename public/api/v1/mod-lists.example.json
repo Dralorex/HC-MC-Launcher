@@ -1,0 +1,15 @@
+{
+  "whitelist": [
+    {
+      "sha512": "hex",
+      "sha1": "hex",
+      "required": true,
+      "_note": "Add the hollow-crown-messenger.jar hashes here. The messenger jar must be whitelisted or the plugin cannot treat it as allowed."
+    }
+  ],
+  "blacklist": [
+    {
+      "sha512": "hex"
+    }
+  ]
+}

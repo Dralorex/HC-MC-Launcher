@@ -1,64 +1,31 @@
 <script setup lang="ts">
-import { CircleSlashIcon, ImportIcon, PlusIcon } from '@modrinth/assets'
-import { Button, defineMessages, IntlFormatted, SplitButton, useVIntl } from '@modrinth/ui'
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
-
-import modrinthSocialIcon from '../../assets/welcome/modrinth-social-icon.png'
-
-const showCreationModal = inject<() => void>('showCreationModal')
-const showImportModal = inject<() => void>('showImportModal')
+import { Button, defineMessages, useVIntl } from '@modrinth/ui'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const emit = defineEmits<{
 	skip: []
 }>()
 
+const router = useRouter()
 const { formatMessage } = useVIntl()
 
 const messages = defineMessages({
 	welcomeTitle: {
 		id: 'app.welcome-screen.title',
-		defaultMessage: 'Welcome to Modrinth',
+		defaultMessage: 'Welcome to The Hollow Crown Launcher',
 	},
 	welcomeDescription: {
 		id: 'app.welcome-screen.description',
-		defaultMessage: 'Ready to start playing?',
+		defaultMessage: 'Joining for an Event or using our Modpacks?',
 	},
-	createInstance: {
-		id: 'app.welcome-screen.create-instance',
-		defaultMessage: 'Create an instance',
-	},
-	moreOptions: {
-		id: 'app.welcome-screen.more-options',
-		defaultMessage: 'More options',
-	},
-	skip: {
-		id: 'app.welcome-screen.skip',
-		defaultMessage: 'Skip',
-	},
-	quickCreateHint: {
-		id: 'app.welcome-screen.quick-create-hint',
-		defaultMessage: 'Press <shortcut>N</shortcut> to quick create an instance',
-	},
-	importPrompt: {
-		id: 'app.welcome-screen.import-prompt',
-		defaultMessage: 'Escaping another launcher?',
-	},
-	importFromLauncher: {
-		id: 'app.welcome-screen.import-from-launcher',
-		defaultMessage: 'Import from launcher',
+	openModpacks: {
+		id: 'app.welcome-screen.open-modpacks',
+		defaultMessage: 'Open Modpacks',
 	},
 })
 
 const offline = ref(!navigator.onLine)
-
-const createOptions = computed(() => [
-	{
-		id: 'skip',
-		label: formatMessage(messages.skip),
-		icon: CircleSlashIcon,
-		action: () => emit('skip'),
-	},
-])
 
 function handleOffline() {
 	offline.value = true
@@ -68,36 +35,19 @@ function handleOnline() {
 	offline.value = false
 }
 
-function handleQuickCreate(event: KeyboardEvent) {
-	const target = event.target as HTMLElement | null
-	if (
-		event.key.toLowerCase() !== 'n' ||
-		event.repeat ||
-		event.metaKey ||
-		event.ctrlKey ||
-		event.altKey ||
-		target?.isContentEditable ||
-		['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')
-	) {
-		return
-	}
-
-	if (!offline.value) {
-		event.preventDefault()
-		showCreationModal?.()
-	}
+async function openModpacks() {
+	emit('skip')
+	await router.push('/catalog')
 }
 
 onMounted(() => {
 	window.addEventListener('offline', handleOffline)
 	window.addEventListener('online', handleOnline)
-	window.addEventListener('keydown', handleQuickCreate)
 })
 
 onUnmounted(() => {
 	window.removeEventListener('offline', handleOffline)
 	window.removeEventListener('online', handleOnline)
-	window.removeEventListener('keydown', handleQuickCreate)
 })
 </script>
 
@@ -109,9 +59,6 @@ onUnmounted(() => {
 					class="dot-pattern pointer-events-none absolute left-1/2 -top-52 -z-10 h-[29.875rem] w-[min(25.9375rem,80vw)] -translate-x-1/2 rounded-2xl [@media(max-height:700px)]:h-[23rem]"
 					aria-hidden="true"
 				/>
-				<div class="size-[6.25rem]">
-					<img :src="modrinthSocialIcon" alt="" class="pointer-events-none size-full" />
-				</div>
 				<div class="flex flex-col items-center gap-2">
 					<h1 class="m-0 flex items-center gap-2 text-2xl font-semibold leading-8 text-contrast">
 						{{ formatMessage(messages.welcomeTitle) }}
@@ -121,41 +68,18 @@ onUnmounted(() => {
 					</p>
 				</div>
 				<div class="flex w-72 flex-col items-center gap-4">
-					<SplitButton
+					<Button
 						type="colored"
 						color="brand"
 						size="lg"
-						class="!shadow-none"
-						:options="createOptions"
-						:menu-label="formatMessage(messages.moreOptions)"
-						:primary-disabled="offline"
-						@click="showCreationModal?.()"
+						class="!shadow-none w-full justify-center"
+						:disabled="offline"
+						@click="openModpacks"
 					>
-						<PlusIcon />
-						{{ formatMessage(messages.createInstance) }}
-					</SplitButton>
-					<span class="flex items-center gap-1 text-sm leading-5 text-secondary">
-						<IntlFormatted :message-id="messages.quickCreateHint">
-							<template #shortcut="{ children }">
-								<kbd
-									class="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-solid border-surface-5 bg-button-bg px-1 text-xs font-normal leading-4 text-primary"
-								>
-									<component :is="() => children" />
-								</kbd>
-							</template>
-						</IntlFormatted>
-					</span>
+						{{ formatMessage(messages.openModpacks) }}
+					</Button>
 				</div>
 			</div>
-		</div>
-		<div
-			class="flex flex-col h-max items-center justify-end gap-4 text-sm leading-5 text-secondary"
-		>
-			<span class="whitespace-nowrap">{{ formatMessage(messages.importPrompt) }}</span>
-			<Button size="lg" class="!font-medium" :disabled="offline" @click="showImportModal?.()">
-				<ImportIcon />
-				{{ formatMessage(messages.importFromLauncher) }}
-			</Button>
 		</div>
 	</div>
 </template>

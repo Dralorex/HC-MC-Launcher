@@ -20,6 +20,7 @@ const props = defineProps<{
 	hasPlus: boolean
 	showAd: boolean
 	visible: boolean
+	ownerPreview: boolean
 	requestSignIn: () => void
 }>()
 
@@ -31,7 +32,10 @@ const emit = defineEmits<{
 const { formatMessage } = useVIntl()
 const appTheme = useTheme()
 const { hasLoggedIntoMinecraft, hasLoggedIntoModrinth, showChecklist } = injectOnboardingChecklist()
-const showFriendsList = computed(() => !showChecklist.value || hasLoggedIntoModrinth.value)
+const showFriendsList = computed(
+	() =>
+		props.ownerPreview && (!showChecklist.value || hasLoggedIntoModrinth.value),
+)
 const accounts = ref<InstanceType<typeof AccountsCard> | null>(null)
 const friends = ref<InstanceType<typeof FriendsList> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
@@ -102,6 +106,7 @@ const messages = defineMessages({
 				data-overlayscrollbars-initialize
 			>
 				<OnboardingChecklist
+					:owner-preview="ownerPreview"
 					@create-instance="emit('create-instance')"
 					@login-minecraft="accounts?.login()"
 					@login-modrinth="emit('login-modrinth')"

@@ -5,6 +5,10 @@ import { computed, onUnmounted, ref } from 'vue'
 
 import { injectOnboardingChecklist } from '@/providers/onboarding-checklist'
 
+const props = defineProps<{
+	ownerPreview?: boolean
+}>()
+
 const emit = defineEmits<{
 	'create-instance': []
 	'login-minecraft': []
@@ -37,30 +41,35 @@ const messages = defineMessages({
 	},
 	loginModrinth: {
 		id: 'onboarding-checklist.login-modrinth',
-		defaultMessage: 'Sign in to Modrinth',
+		defaultMessage: 'Sign in to Hollow Crown',
 	},
 })
 
-const steps = computed(() => [
-	{
-		id: 'create-instance',
-		label: formatMessage(messages.createInstance),
-		complete: hasCreatedInstance.value,
-		action: () => emit('create-instance'),
-	},
-	{
-		id: 'login-minecraft',
-		label: formatMessage(messages.loginMinecraft),
-		complete: hasLoggedIntoMinecraft.value,
-		action: () => emit('login-minecraft'),
-	},
-	{
-		id: 'login-modrinth',
-		label: formatMessage(messages.loginModrinth),
-		complete: hasLoggedIntoModrinth.value,
-		action: () => emit('login-modrinth'),
-	},
-])
+const steps = computed(() => {
+	const next = [
+		{
+			id: 'create-instance',
+			label: formatMessage(messages.createInstance),
+			complete: hasCreatedInstance.value,
+			action: () => emit('create-instance'),
+		},
+		{
+			id: 'login-minecraft',
+			label: formatMessage(messages.loginMinecraft),
+			complete: hasLoggedIntoMinecraft.value,
+			action: () => emit('login-minecraft'),
+		},
+	]
+	if (props.ownerPreview) {
+		next.push({
+			id: 'login-modrinth',
+			label: formatMessage(messages.loginModrinth),
+			complete: hasLoggedIntoModrinth.value,
+			action: () => emit('login-modrinth'),
+		})
+	}
+	return next
+})
 
 const accordionButtonClass = computed(
 	() =>

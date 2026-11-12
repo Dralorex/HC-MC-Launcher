@@ -108,6 +108,7 @@ import { computed, onUnmounted, ref } from 'vue'
 
 import { useAppEvent } from '@/composables/use-app-event'
 import { handleSevereError } from '@/composables/use-error.js'
+import { refreshOwnerPreview } from '@/features/owner-preview/use-owner-preview'
 import { trackEvent } from '@/helpers/analytics'
 import {
 	get_default_user,
@@ -241,6 +242,7 @@ async function login() {
 
 	if (loggedIn) {
 		await setAccount(loggedIn)
+		await refreshOwnerPreview()
 	}
 
 	trackEvent('AccountLogIn')

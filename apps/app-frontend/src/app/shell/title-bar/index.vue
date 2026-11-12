@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronLeftIcon, ChevronRightIcon, RightArrowIcon } from '@modrinth/assets'
-import { defineMessages, IconButton, TextLogo, useVIntl } from '@modrinth/ui'
+import { defineMessages, IconButton, useVIntl } from '@modrinth/ui'
 import { useRouter } from 'vue-router'
 
 import AppActionBar from './action-bar.vue'
@@ -21,6 +21,10 @@ const emit = defineEmits<{
 const router = useRouter()
 const { formatMessage } = useVIntl()
 const messages = defineMessages({
+	brand: {
+		id: 'app.navigation.hollow-crown-modpacks',
+		defaultMessage: 'The Hollow Crown Modpacks',
+	},
 	goBack: { id: 'app.navigation.go-back', defaultMessage: 'Go back' },
 	goForward: { id: 'app.navigation.go-forward', defaultMessage: 'Go forward' },
 	nextImage: { id: 'app.navigation.next-image', defaultMessage: 'Next image' },
@@ -33,7 +37,12 @@ const messages = defineMessages({
 		class="app-title-bar relative z-[2] flex bg-bg-raised pl-1 [grid-area:status] [.mac-traffic-lights_&]:pl-20"
 	>
 		<div data-tauri-drag-region class="flex min-w-0 flex-1 items-center overflow-hidden p-2">
-			<TextLogo class="h-7 w-auto shrink-0 text-contrast pointer-events-none" />
+			<span
+				data-tauri-drag-region
+				class="shrink-0 select-none text-sm font-semibold leading-5 text-contrast pointer-events-none"
+			>
+				{{ formatMessage(messages.brand) }}
+			</span>
 			<div data-tauri-drag-region class="ml-2 flex shrink-0 items-center gap-2">
 				<IconButton
 					type="outlined"

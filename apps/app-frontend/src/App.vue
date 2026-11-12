@@ -108,6 +108,10 @@ import {
 import SharedInstanceLockNotice from '@/features/library/shared-instances/shared-instance-lock-notice.vue'
 import SharedInstanceModals from '@/features/library/shared-instances/shared-instance-modals.vue'
 import { provideMinecraftAccounts } from '@/features/minecraft-accounts/context'
+import {
+	ensureOwnerPreviewLoaded,
+	useOwnerPreview,
+} from '@/features/owner-preview/use-owner-preview'
 import AppSettingsModal from '@/features/settings/app-settings-modal/index.vue'
 import { provideSettingsActions } from '@/features/settings/settings-actions'
 import NewUpdateModal from '@/features/updates/new-update-modal/index.vue'
@@ -240,6 +244,8 @@ const INTERCOM_BUBBLE_DEFAULT_PADDING = 20
 const credentials = ref()
 const storedModrinthAccounts = ref([])
 let credentialsRefreshId = 0
+const { ownerPreview } = useOwnerPreview()
+void ensureOwnerPreviewLoaded()
 const sidebarToggled = ref(true)
 watch(
 	() => appSettings.toggleSidebar,
@@ -609,9 +615,17 @@ const messages = defineMessages({
 		id: 'app.nav.create-new-instance',
 		defaultMessage: 'Create new instance',
 	},
+	modpacks: {
+		id: 'app.nav.hollow-crown-modpacks',
+		defaultMessage: 'The Hollow Crown Modpacks',
+	},
+	skins: {
+		id: 'app.nav.skins',
+		defaultMessage: 'Skins',
+	},
 	modrinthAccount: {
 		id: 'app.nav.modrinth-account',
-		defaultMessage: 'Modrinth account',
+		defaultMessage: 'Hollow Crown account',
 	},
 	viewProfile: {
 		id: 'app.nav.view-profile',
@@ -623,7 +637,7 @@ const messages = defineMessages({
 	},
 	signInToModrinthAccount: {
 		id: 'app.nav.sign-in-to-modrinth-account',
-		defaultMessage: 'Sign into Modrinth',
+		defaultMessage: 'Sign into Hollow Crown',
 	},
 	loadingProfile: {
 		id: 'app.nav.loading-profile',
@@ -2053,8 +2067,11 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			>
 				<PlayIcon class="ml-0.5" />
 			</NavButton>
-			<NavButton v-tooltip.right="'Hollow Crown catalog'" to="/catalog">
+			<NavButton v-tooltip.right="formatMessage(messages.modpacks)" to="/catalog">
 				<CompassIcon />
+			</NavButton>
+			<NavButton v-tooltip.right="formatMessage(messages.skins)" to="/skins">
+				<ShirtIcon />
 			</NavButton>
 			<suspense>
 				<QuickInstanceSwitcher>
@@ -2073,70 +2090,72 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			>
 				<SettingsIcon />
 			</NavButton>
-			<IconButton
-				v-if="credentials === undefined"
-				v-tooltip.right="profileButtonTooltip"
-				type="quiet"
-				size="xl"
-				disabled
-				class="pointer-events-none"
-				:label="formatMessage(messages.loadingProfile)"
-			>
-				<SpinnerIcon class="animate-spin" />
-			</IconButton>
-			<TeleportOverflowMenu
-				v-else-if="credentials?.user"
-				v-tooltip.right="profileButtonTooltip"
-				type="quiet"
-				size="xl"
-				:label="formatMessage(messages.modrinthAccount)"
-				:options="modrinthAccountMenuOptions"
-				placement="right-end"
-				:distance="4"
-				class="brightness-100 hover:!brightness-100 focus-visible:!brightness-100"
-			>
-				<Avatar
-					:src="credentials?.user?.avatar_url"
-					alt=""
-					size="32px"
-					circle
-					no-shadow
-					class="pointer-events-none !size-8"
-				/>
-				<template
-					v-for="account in accountSwitcherAccounts"
-					:key="account.user_id"
-					#[account.optionId]
+			<template v-if="ownerPreview">
+				<IconButton
+					v-if="credentials === undefined"
+					v-tooltip.right="profileButtonTooltip"
+					type="quiet"
+					size="xl"
+					disabled
+					class="pointer-events-none"
+					:label="formatMessage(messages.loadingProfile)"
 				>
-					<Avatar :src="account.user.avatar_url" size="1.25rem" aria-hidden="true" circle />
-					{{ account.user.username }}
-					<UserRoleIcon :role="account.user.role" />
-				</template>
-			</TeleportOverflowMenu>
-			<TeleportOverflowMenu
-				v-else-if="accountSwitcherAccounts.length > 0"
-				v-tooltip.right="profileButtonTooltip"
-				type="quiet"
-				size="xl"
-				:label="formatMessage(messages.signInToModrinthAccount)"
-				:options="accountSwitcherOptions"
-				placement="right-end"
-				:distance="4"
-			>
-				<LogInIcon class="!text-brand" />
-				<template
-					v-for="account in accountSwitcherAccounts"
-					:key="account.user_id"
-					#[account.optionId]
+					<SpinnerIcon class="animate-spin" />
+				</IconButton>
+				<TeleportOverflowMenu
+					v-else-if="credentials?.user"
+					v-tooltip.right="profileButtonTooltip"
+					type="quiet"
+					size="xl"
+					:label="formatMessage(messages.modrinthAccount)"
+					:options="modrinthAccountMenuOptions"
+					placement="right-end"
+					:distance="4"
+					class="brightness-100 hover:!brightness-100 focus-visible:!brightness-100"
 				>
-					<Avatar :src="account.user.avatar_url" size="1.25rem" aria-hidden="true" circle />
-					{{ account.user.username }}
-					<UserRoleIcon :role="account.user.role" />
-				</template>
-			</TeleportOverflowMenu>
-			<NavButton v-else v-tooltip.right="profileButtonTooltip" :to="() => requestSignIn()">
-				<LogInIcon class="text-brand" />
-			</NavButton>
+					<Avatar
+						:src="credentials?.user?.avatar_url"
+						alt=""
+						size="32px"
+						circle
+						no-shadow
+						class="pointer-events-none !size-8"
+					/>
+					<template
+						v-for="account in accountSwitcherAccounts"
+						:key="account.user_id"
+						#[account.optionId]
+					>
+						<Avatar :src="account.user.avatar_url" size="1.25rem" aria-hidden="true" circle />
+						{{ account.user.username }}
+						<UserRoleIcon :role="account.user.role" />
+					</template>
+				</TeleportOverflowMenu>
+				<TeleportOverflowMenu
+					v-else-if="accountSwitcherAccounts.length > 0"
+					v-tooltip.right="profileButtonTooltip"
+					type="quiet"
+					size="xl"
+					:label="formatMessage(messages.signInToModrinthAccount)"
+					:options="accountSwitcherOptions"
+					placement="right-end"
+					:distance="4"
+				>
+					<LogInIcon class="!text-brand" />
+					<template
+						v-for="account in accountSwitcherAccounts"
+						:key="account.user_id"
+						#[account.optionId]
+					>
+						<Avatar :src="account.user.avatar_url" size="1.25rem" aria-hidden="true" circle />
+						{{ account.user.username }}
+						<UserRoleIcon :role="account.user.role" />
+					</template>
+				</TeleportOverflowMenu>
+				<NavButton v-else v-tooltip.right="profileButtonTooltip" :to="() => requestSignIn()">
+					<LogInIcon class="text-brand" />
+				</NavButton>
+			</template>
 		</div>
 		<AppTitleBar
 			:can-navigate-back="canNavigateBack"
@@ -2217,6 +2236,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			:has-plus="hasPlus"
 			:show-ad="showAd"
 			:visible="sidebarVisible"
+			:owner-preview="ownerPreview"
 			:request-sign-in="() => requestSignIn()"
 			@create-instance="router.push('/catalog')"
 			@login-modrinth="signIn"
