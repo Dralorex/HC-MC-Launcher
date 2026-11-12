@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { PlusIcon, SearchIcon, SquarePlusIcon } from '@modrinth/assets'
+import { SearchIcon, SquarePlusIcon } from '@modrinth/assets'
 import { Button, defineMessages, Input, useVIntl } from '@modrinth/ui'
-import { computed, inject } from 'vue'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 import FilterMenu from '@/components/ui/library/library-toolbar/filter-menu.vue'
 import NewGroupModal from '@/components/ui/library/library-toolbar/new-group-modal.vue'
 import SortMenu from '@/components/ui/library/library-toolbar/sort-menu.vue'
 import { useLibrary } from '@/components/ui/library/use-library'
 
+const router = useRouter()
 const { search, selectedLibraryInstances, openNewGroupModal } = useLibrary()
-const showCreationModal = inject<() => void>('showCreationModal')
 const { formatMessage } = useVIntl()
 const messages = defineMessages({
 	search: { id: 'app.library.search.placeholder', defaultMessage: 'Search' },
 	newGroup: { id: 'app.library.group.new', defaultMessage: 'New group' },
-	newInstance: { id: 'app.library.instance.new', defaultMessage: 'New instance' },
+	openModpacks: { id: 'app.library.open-modpacks', defaultMessage: 'Open Modpacks' },
 })
 const selectedInstanceIds = computed(
 	() =>
@@ -41,9 +42,8 @@ function openNewGroup() {
 				<SquarePlusIcon />
 				{{ formatMessage(messages.newGroup) }}
 			</Button>
-			<Button type="colored" color="brand" @click="showCreationModal?.()">
-				<PlusIcon />
-				{{ formatMessage(messages.newInstance) }}
+			<Button type="colored" color="brand" @click="router.push('/catalog')">
+				{{ formatMessage(messages.openModpacks) }}
 			</Button>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">

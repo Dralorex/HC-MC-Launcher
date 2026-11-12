@@ -51,11 +51,11 @@ export function setupCreationModal(
 	}
 
 	provide('showCreationModal', () => {
-		installationModal.value?.show()
+		// Hollow Crown players install catalog packs only — no vanilla/custom create flow.
+		void router.push('/catalog')
 	})
 	provide('showImportModal', async () => {
-		await installationModal.value?.show()
-		installationModal.value?.ctx.setImportMode()
+		void router.push('/catalog')
 	})
 
 	async function navigateToCreatedInstance(

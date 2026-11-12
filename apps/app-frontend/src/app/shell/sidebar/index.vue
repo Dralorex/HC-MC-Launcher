@@ -9,7 +9,6 @@ import FriendsList from '@/features/friends/friends-list/index.vue'
 import AccountsCard from '@/features/minecraft-accounts/accounts-card.vue'
 import type { MinecraftAccountsActions } from '@/features/minecraft-accounts/context'
 import NewsSidebar from '@/features/news/news-sidebar.vue'
-import OnboardingChecklist from '@/features/onboarding/checklist.vue'
 import type { ModrinthCredentials } from '@/helpers/mr_auth'
 import { injectOnboardingChecklist } from '@/providers/onboarding-checklist'
 
@@ -25,16 +24,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-	'create-instance': []
 	'login-modrinth': []
 }>()
 
 const { formatMessage } = useVIntl()
 const appTheme = useTheme()
-const { hasLoggedIntoMinecraft, hasLoggedIntoModrinth, showChecklist } = injectOnboardingChecklist()
+const { hasLoggedIntoModrinth } = injectOnboardingChecklist()
 const showFriendsList = computed(
-	() =>
-		props.ownerPreview && (!showChecklist.value || hasLoggedIntoModrinth.value),
+	() => props.ownerPreview && hasLoggedIntoModrinth.value,
 )
 const accounts = ref<InstanceType<typeof AccountsCard> | null>(null)
 const friends = ref<InstanceType<typeof FriendsList> | null>(null)
@@ -105,12 +102,6 @@ const messages = defineMessages({
 				class="app-sidebar-scrollable relative min-h-0 grow shrink"
 				data-overlayscrollbars-initialize
 			>
-				<OnboardingChecklist
-					:owner-preview="ownerPreview"
-					@create-instance="emit('create-instance')"
-					@login-minecraft="accounts?.login()"
-					@login-modrinth="emit('login-modrinth')"
-				/>
 				<div
 					id="sidebar-teleport-target"
 					class="sidebar-teleport-content empty:hidden"
@@ -118,7 +109,6 @@ const messages = defineMessages({
 				></div>
 				<div class="sidebar-default-content hidden" :class="{ 'sidebar-enabled': visible }">
 					<div
-						v-show="hasLoggedIntoMinecraft"
 						class="p-4 border-0 border-b-[1px] border-[--brand-gradient-border] border-solid"
 					>
 						<h3 class="text-base text-primary font-medium m-0">

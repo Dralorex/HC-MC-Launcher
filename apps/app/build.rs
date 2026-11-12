@@ -493,6 +493,17 @@ fn main() {
                     .default_permission(
                         DefaultPermissionRule::AllowAllCommands,
                     ),
+            )
+            .plugin(
+                "hollow-crown",
+                InlinedPlugin::new()
+                    .commands(&[
+                        "hollow_crown_catalog",
+                        "hollow_crown_owner_preview",
+                    ])
+                    .default_permission(
+                        DefaultPermissionRule::AllowAllCommands,
+                    ),
             ),
     )
     .expect("Failed to run tauri-build");

@@ -611,10 +611,6 @@ const messages = defineMessages({
 		id: 'app.nav.screenshots',
 		defaultMessage: 'Screenshots',
 	},
-	createNewInstance: {
-		id: 'app.nav.create-new-instance',
-		defaultMessage: 'Create new instance',
-	},
 	modpacks: {
 		id: 'app.nav.hollow-crown-modpacks',
 		defaultMessage: 'The Hollow Crown Modpacks',
@@ -2058,8 +2054,8 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		>
 			<NavButton
 				v-tooltip.right="formatMessage(messages.home)"
-				to="/"
-				:is-primary="(route) => route.path === '/'"
+				to="/library"
+				:is-primary="(route) => route.path === '/library' || route.path === '/'"
 				:is-subpage="
 					() =>
 						(route.path.startsWith('/browse') || route.path.startsWith('/project')) && route.query.i
@@ -2074,15 +2070,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				<ShirtIcon />
 			</NavButton>
 			<suspense>
-				<QuickInstanceSwitcher>
-					<NavButton
-						v-tooltip.right="formatMessage(messages.createNewInstance)"
-						to="/catalog"
-						:disabled="offline"
-					>
-						<PlusIcon />
-					</NavButton>
-				</QuickInstanceSwitcher>
+				<QuickInstanceSwitcher />
 			</suspense>
 			<NavButton
 				v-tooltip.right="formatMessage(commonMessages.settingsLabel)"
@@ -2238,7 +2226,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			:visible="sidebarVisible"
 			:owner-preview="ownerPreview"
 			:request-sign-in="() => requestSignIn()"
-			@create-instance="router.push('/catalog')"
 			@login-modrinth="signIn"
 		/>
 	</div>
