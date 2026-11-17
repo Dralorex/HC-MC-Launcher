@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { hollow_crown_install_pack } from '@/helpers/hollow-crown'
 import {
 	install_create_modpack_instance,
 	installJobInstanceId,
@@ -33,8 +34,15 @@ onMounted(async () => {
 	}
 })
 
+function packKey(pack) {
+	return pack.mrpack_url || pack.modrinth_project_id || pack.name
+}
+
 function formatInstallError(error, pack) {
 	const raw = String(error?.message || error || '')
+	if (pack.mrpack_url) {
+		return raw || 'Install failed.'
+	}
 	const lower = raw.toLowerCase()
 	if (
 		lower.includes('404') ||
@@ -50,16 +58,19 @@ function formatInstallError(error, pack) {
 }
 
 async function installPack(pack) {
-	installingId.value = pack.modrinth_project_id
-	installHints.value = { ...installHints.value, [pack.modrinth_project_id]: '' }
+	const id = packKey(pack)
+	installingId.value = id
+	installHints.value = { ...installHints.value, [id]: '' }
 	try {
-		const job = await install_create_modpack_instance({
-			type: 'fromVersionId',
-			project_id: pack.modrinth_project_id,
-			version_id: pack.modrinth_version_id,
-			title: pack.name,
-			icon_url: pack.icon_url ?? null,
-		})
+		const job = pack.mrpack_url
+			? await hollow_crown_install_pack(pack.name)
+			: await install_create_modpack_instance({
+					type: 'fromVersionId',
+					project_id: pack.modrinth_project_id,
+					version_id: pack.modrinth_version_id,
+					title: pack.name,
+					icon_url: pack.icon_url ?? null,
+				})
 		const finished = await wait_for_install_job(appEvents, job.job_id)
 		const instanceId = installJobInstanceId(finished)
 		if (instanceId) {
@@ -67,7 +78,7 @@ async function installPack(pack) {
 		}
 	} catch (error) {
 		const message = formatInstallError(error, pack)
-		installHints.value = { ...installHints.value, [pack.modrinth_project_id]: message }
+		installHints.value = { ...installHints.value, [id]: message }
 		handleError(new Error(message))
 	} finally {
 		installingId.value = ''
@@ -89,7 +100,7 @@ async function installPack(pack) {
 		<p v-else-if="packs.length === 0" class="text-secondary">No packs are published yet.</p>
 		<article
 			v-for="pack in packs"
-			:key="pack.modrinth_project_id"
+			:key="packKey(pack)"
 			class="bg-bg-raised rounded-xl p-4 flex flex-col gap-3"
 		>
 			<div class="flex items-center justify-between gap-4">
@@ -100,17 +111,17 @@ async function installPack(pack) {
 				</div>
 				<button
 					class="btn btn-primary shrink-0"
-					:disabled="installingId === pack.modrinth_project_id"
+					:disabled="installingId === packKey(pack)"
 					@click="installPack(pack)"
 				>
-					{{ installingId === pack.modrinth_project_id ? 'Installing…' : 'Install' }}
+					{{ installingId === packKey(pack) ? 'Installing…' : 'Install' }}
 				</button>
 			</div>
 			<p
-				v-if="installHints[pack.modrinth_project_id]"
+				v-if="installHints[packKey(pack)]"
 				class="text-sm text-secondary m-0"
 			>
-				{{ installHints[pack.modrinth_project_id] }}
+				{{ installHints[packKey(pack)] }}
 			</p>
 		</article>
 	</div>

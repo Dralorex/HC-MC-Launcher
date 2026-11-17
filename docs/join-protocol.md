@@ -8,29 +8,41 @@ Ordinary server join is unchanged. This protocol is what the event gate in HC-Pl
 
 `GET https://launcher.thehollowcrownmc.com/api/v1/catalog`
 
+A pack installs from `mrpack_url` or from Modrinth ids. When `mrpack_url` is set, install and repair download that `.mrpack` and pass it through the Modrinth pack installer. They do not ask Modrinth for a project or version. A pack with no `mrpack_url` still uses `modrinth_project_id` and `modrinth_version_id`.
+
+`mrpack_url` is either `https://launcher.thehollowcrownmc.com/files/<name>.mrpack` or a `/files/<name>.mrpack` path on that host. Other hosts are refused.
+
 ```json
 {
   "packs": [
     {
       "name": "Hollow Crown",
       "summary": "",
-      "modrinth_project_id": "project id",
-      "modrinth_version_id": "version id",
+      "mrpack_url": "/files/example.mrpack",
       "server_address": "play.thehollowcrownmc.com",
       "icon_url": null,
-      "hosted_files": [
-        {
-          "sha512": "hex",
-          "sha1": "hex",
-          "url": "https://launcher.thehollowcrownmc.com/files/example.jar"
-        }
-      ]
+      "hosted_files": []
     }
   ]
 }
 ```
 
-Play connects to `play.thehollowcrownmc.com`. It does not follow a different catalog address. A `hosted_files` entry changes only the download URL for that hash. Those downloads stay on `https://launcher.thehollowcrownmc.com`. The Modrinth file stays public.
+The same pack can keep Modrinth ids until an `.mrpack` is uploaded. `mrpack_url: null` leaves install and repair on those ids:
+
+```json
+{
+  "name": "The Hollow Crown Iron Legacy",
+  "summary": "",
+  "mrpack_url": null,
+  "modrinth_project_id": "the-hollow-crown-iron-legacy",
+  "modrinth_version_id": "NaXkJw1s",
+  "server_address": "play.thehollowcrownmc.com",
+  "icon_url": null,
+  "hosted_files": []
+}
+```
+
+Play connects to `play.thehollowcrownmc.com`. It does not follow a different catalog address. A `hosted_files` entry changes only the download URL for that hash after a Modrinth version exists. Those downloads stay on `https://launcher.thehollowcrownmc.com`. The Modrinth file stays public. `hosted_files` does not replace `mrpack_url`.
 
 Override the URL with `HOLLOW_CROWN_CATALOG_URL`.
 

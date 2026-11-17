@@ -1489,6 +1489,7 @@ async fn run_request(
                         job_state,
                         state,
                         &instance_id,
+                        matches!(location, CreatePackLocation::FromFile { .. }),
                     )
                     .await?;
                     install_pack(
@@ -1687,6 +1688,7 @@ async fn remove_existing_pack_content(
     job_state: &InstallJobState,
     state: &State,
     instance_id: &str,
+    local_mrpack: bool,
 ) -> crate::Result<HashSet<String>> {
     let metadata = crate::state::instances::commands::get_instance_metadata(
         instance_id,
@@ -1694,6 +1696,27 @@ async fn remove_existing_pack_content(
     )
     .await?
     .ok_or(ErrorKind::InputError("unknown instance".to_string()))?;
+    // Reinstalling from a file must not ask Modrinth for the previous version.
+    if local_mrpack
+        && matches!(
+            metadata.link,
+            InstanceLink::ModrinthModpack { .. }
+                | InstanceLink::ServerProjectModpack { .. }
+        )
+    {
+        let disabled_project_ids =
+            crate::state::instances::commands::list_project_files(
+                instance_id,
+                state,
+            )
+            .await?
+            .into_iter()
+            .filter_map(|file| (!file.enabled).then_some(file.project_id?))
+            .collect::<HashSet<_>>();
+        remove_existing_imported_pack_content(instance_id, &metadata, state)
+            .await?;
+        return Ok(disabled_project_ids);
+    }
     let (project_id, version_id) = match &metadata.link {
         InstanceLink::ModrinthModpack {
             project_id,
@@ -2113,10 +2136,21 @@ async fn update_backup_scope(
         } => {
             let metadata = instance_metadata(instance_id, state).await?;
             let mut packs = vec![(location.clone(), DownloadReason::Modpack)];
-            packs.extend(
-                linked_pack_location(&metadata)
-                    .map(|location| (location, DownloadReason::Update)),
-            );
+            // A local .mrpack is the pack. Do not download the linked Modrinth
+            // version just to list files that are already on the instance.
+            if matches!(location, CreatePackLocation::FromFile { .. }) {
+                for file in
+                    content_rows::get_instance_files(instance_id, &state.pool)
+                        .await?
+                {
+                    paths.push(file.relative_path);
+                }
+            } else {
+                packs.extend(
+                    linked_pack_location(&metadata)
+                        .map(|location| (location, DownloadReason::Update)),
+                );
+            }
             (instance_id, packs)
         }
         InstallRequest::UpdateSharedInstance { instance_id } => {

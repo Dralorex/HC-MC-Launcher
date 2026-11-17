@@ -742,7 +742,10 @@ async fn install_zipped_mrpack_files_with_reporter_inner(
             file.hashes.get(&PackFileHash::Sha1).map(String::as_str)
         })
         .collect::<Vec<_>>();
-    let file_infos_by_hash = Arc::new(
+    // A pack with no Modrinth version installs from the .mrpack URLs alone.
+    let file_infos_by_hash = Arc::new(if version_id.is_none() {
+        HashMap::new()
+    } else {
         CachedEntry::get_file_many(
             &file_info_hashes,
             None,
@@ -752,8 +755,8 @@ async fn install_zipped_mrpack_files_with_reporter_inner(
         .await?
         .into_iter()
         .map(|file| (file.hash.clone(), file))
-        .collect::<HashMap<_, _>>(),
-    );
+        .collect::<HashMap<_, _>>()
+    });
     let content_context = ModpackContentInstallContext {
         instance_id: instance_id.clone(),
         instance_path: instance_path.clone(),

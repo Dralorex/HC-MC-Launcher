@@ -149,6 +149,7 @@ import { useHiddenInstances } from '@/features/library/hidden-instances/use-hidd
 import { serverStatusQueryOptions } from '@/features/servers/queries'
 import { trackEvent } from '@/helpers/analytics'
 import { toError } from '@/helpers/errors'
+import { hollow_crown_repair_instance } from '@/helpers/hollow-crown'
 import {
 	getSharedInstanceUnavailableReason,
 	install_existing_instance,
@@ -832,8 +833,23 @@ const repairInstance = async () => {
 	if (
 		currentInstance.install_stage !== 'pack_installed' &&
 		(currentInstance.link?.type === 'modrinth_modpack' ||
-			currentInstance.link?.type === 'server_project_modpack')
+			currentInstance.link?.type === 'server_project_modpack' ||
+			currentInstance.link?.type === 'imported_modpack')
 	) {
+		const hosted = await hollow_crown_repair_instance(currentInstance.id).catch((error) => {
+			handleError(toError(error))
+			return 'failed' as const
+		})
+		if (hosted) return
+		if (
+			currentInstance.link?.type !== 'modrinth_modpack' &&
+			currentInstance.link?.type !== 'server_project_modpack'
+		) {
+			await install_existing_instance(currentInstance.id, false).catch((error) =>
+				handleError(toError(error)),
+			)
+			return
+		}
 		await install_pack_to_existing_instance(currentInstance.id, {
 			type: 'fromVersionId',
 			project_id: currentInstance.link.project_id ?? currentInstance.link.server_project_id ?? '',

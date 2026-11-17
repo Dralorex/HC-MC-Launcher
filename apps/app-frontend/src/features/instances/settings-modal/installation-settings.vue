@@ -19,6 +19,7 @@ import { useManagedContentPolicy } from '@/composables/instances/use-managed-con
 import { useAppSettings } from '@/composables/use-app-settings.ts'
 import { trackEvent } from '@/helpers/analytics'
 import { get_project_versions, get_version } from '@/helpers/cache'
+import { hollow_crown_repair_instance } from '@/helpers/hollow-crown'
 import {
 	install_existing_instance,
 	install_pack_to_existing_instance,
@@ -393,12 +394,18 @@ provideInstallationSettings({
 		reinstalling.value = true
 		let shouldTrack = false
 		try {
-			if (isImportedModpack.value) {
+			const hosted = await hollow_crown_repair_instance(instance.value.id)
+			if (hosted) {
+				const completed = await wait_for_install_job(appEvents, hosted.job_id).catch(handleError)
+				shouldTrack = !!completed
+			} else if (isImportedModpack.value) {
 				shouldTrack = await installLocalModpackFromPicker()
 			} else {
 				await update_repair_modrinth(instance.value.id).catch(handleError)
 				shouldTrack = true
 			}
+		} catch (error) {
+			handleError(error)
 		} finally {
 			reinstalling.value = false
 		}
