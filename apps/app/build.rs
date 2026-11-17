@@ -499,6 +499,8 @@ fn main() {
                 InlinedPlugin::new()
                     .commands(&[
                         "hollow_crown_catalog",
+                        "hollow_crown_install_pack",
+                        "hollow_crown_repair_instance",
                         "hollow_crown_owner_preview",
                     ])
                     .default_permission(

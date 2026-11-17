@@ -10,7 +10,7 @@ v1 is Windows only. The download page is [https://launcher.thehollowcrownmc.com]
 
 ## What Play does
 
-- Install and repair stay on the Modrinth pack flow. There is no mod browser.
+- Install and repair stay on the Modrinth pack flow. A catalog pack can point at an `.mrpack` on the launcher host instead of a Modrinth version. There is no mod browser.
 - The catalog chooses the pack. Play connects to `play.thehollowcrownmc.com`.
 - The launcher hashes the instance and compares it with the whitelist and blacklist. A hash on both lists follows the blacklist.
 - The launcher asks `play.thehollowcrownmc.com` port 8765 for a join token tied to the Minecraft account. The token lasts only while that instance is open, and a newer instance replaces the older token. Closing the instance calls `POST /v1/token/close` on that same port. The download site stays `https://launcher.thehollowcrownmc.com`. The Ed25519 signing key is not in this repository.

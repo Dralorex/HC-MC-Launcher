@@ -433,6 +433,12 @@ pub async fn repair_managed_modrinth(
     .ok_or(ErrorKind::InputError("unknown instance".to_string()))?;
     ensure_metadata_content_unlocked(&metadata)?;
 
+    if let Some(job) =
+        crate::hollow_crown::repair_instance_from_catalog(instance_id).await?
+    {
+        return Ok(job);
+    }
+
     let post_install_edit = match &metadata.link {
         crate::state::InstanceLink::ServerProjectModpack { .. } => {
             Some(crate::install::InstallPostInstallEdit {

@@ -8,7 +8,7 @@ Hollow Crown changes:
 
 - Windows is the only shipped bundle target (`nsis`). Mac and Linux builds are not part of v1.
 - The visible name is Hollow Crown Launcher. Colors are darker bronze, dark red, gray, and dark gray.
-- The mod browser, skins page, and Modrinth hosting pages are not offered. Packs come from the Hollow Crown catalog. Install and repair still use the upstream Modrinth pack flow.
+- The mod browser, skins page, and Modrinth hosting pages are not offered. Packs come from the Hollow Crown catalog. Install and repair still use the upstream Modrinth pack flow. A pack with `mrpack_url` installs from that `.mrpack` on the launcher host and does not ask Modrinth for a version. Packs that only have Modrinth ids still use those ids.
 - Play connects to `play.thehollowcrownmc.com`. Singleplayer and other servers are not offered. The download site stays `https://launcher.thehollowcrownmc.com`.
 - A file flagged "host this file ourselves" is downloaded from the catalog URL instead of `cdn.modrinth.com`.
 - Before Play, instance archives are checked against the server whitelist and blacklist. A hash on both lists follows the blacklist.
